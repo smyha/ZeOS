@@ -5,7 +5,6 @@
 #include <asm.h>
 #include <segment.h>
 
-
 /**************************************************/
 /**** Save & Restore ******************************/
 /**                                              **/
@@ -51,3 +50,29 @@
       movl %edx, %ds;           \
       movl %edx, %es
 
+#define RESTORE_ALL \ 
+      popl %edx; \
+      popl %ecx; \
+      popl %ebx; \
+      popl %esi; \
+      popl %edi; \
+      popl %ebp; \
+      popl %eax; \
+      popl %ds; \
+      popl %es; \
+      popl %fs; \
+      popl %gs;
+
+
+// EOI - END OF INTERRUPTION
+#define EOI \
+      movb $0x20, %al ; \
+      outb %al, $0x20 ;
+
+// KEYBOARD HANDLER
+ENTRY(keyboard_handler) 
+      SAVE_ALL
+      EOI                     // !
+      call keyboard_routine
+      RESTORE_ALL
+      iret
