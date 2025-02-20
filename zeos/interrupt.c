@@ -93,6 +93,24 @@ void setTrapHandler(int vector, void (*handler)(), int maxAccessibleFromPL)
   idt[vector].highOffset      = highWord((DWord)handler);
 }
 
+
+/**
+ * @brief Clock interrupt handling system
+ * 
+ * Contains two main components:
+ * - Handler function that manages clock interrupt events
+ * - Clock routine that updates and displays the system time
+ * 
+ * The system uses these functions to maintain and show the current time,
+ * with the clock advancing at a rate faster than real time for demonstration purposes.
+ * The display is managed through zeos_show_clock() function calls.
+ */
+void clock_handler(void);                     // HANDLER
+void clock_routine() {                        // ROUTINE
+  // NOTE: Showed time goes faster than the real one
+  zeos_show_clock();
+}
+
 /**
  * @brief Handles keyboard interrupts and processes keyboard input
  * 
@@ -177,7 +195,9 @@ void setIdt()
 
   /* ADD INITIALIZATION CODE FOR INTERRUPT VECTOR */
 
+  setInterruptHandler(32, clock_handler, 0);    /* Clock */
   setInterruptHandler(33, keyboard_handler, 0); /* Keyboard */
+  
 
   set_idt_reg(&idtR);
 }

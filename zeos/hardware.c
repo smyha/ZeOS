@@ -104,7 +104,7 @@
    "sti"
    : /*no output*/
    // : "i" (0xff)       /* 0xFF = 1111 1111 -> all bits disabled */
-   : "i" (0xFD)       /* 0xFD = 1111 1101 -> Keyboard enabled */
+   : "i" (0xFC)          /* 0xFD = 1111 1100 -> Keyboard + Clock enabled */
    : "%al" );
  }
  
