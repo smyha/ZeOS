@@ -107,8 +107,8 @@ void setTrapHandler(int vector, void (*handler)(), int maxAccessibleFromPL)
  * 
  * The routine processes the scancode by:
  * 1. Reading the port value
- * 2. Extracting the key code (bits 0-6)
- * 3. Extracting the scan code (bit 7)
+ * 2. Extracting the scan code (bits 0-6)
+ * 3. Extracting the key state (bit 7)
  * 4. On key press (scan_code = 0):
  *    - Prints the corresponding character from char_map if exists
  *    - Prints 'C' if no mapping exists for that key code
@@ -123,16 +123,23 @@ void setTrapHandler(int vector, void (*handler)(), int maxAccessibleFromPL)
 void keyboard_handler(void);                  // HANDLER
 void keyboard_routine() {                     // ROUTINE           
   // Byte scancode = inb(0x60);
-  unsigned char port_value = inb(0x60);
+  unsigned char port_value;
+  int pressed, scan_code;
+
+  port_value = inb(0x60);
   // printk("User pressed: ");
 
-  int key_code = port_value & 0x7F; /* 0x7F = 0111 1111 */
-  int scan_code = port_value >> 7;  /* Bit 7 */     
+  pressed = port_value >> 7;      /* Bit 7 : Key State */     
+  scan_code = port_value & 0x7F;  /* 0x7F = 0111 1111  */
   
   // Check if it's a make (0) or break (1) code
-  if (!scan_code) { // key press
-    if (char_map[key_code] == '\0') printc_xy(0, 0, 'C');
-    else printc_xy(0, 0, char_map[key_code]);
+  if (!pressed) { // key press
+
+    // If the key is not mapped, print 'C'
+    if (char_map[scan_code] == '\0')
+       printc_xy(0, 0, 'C');
+    else 
+      printc_xy(0, 0, char_map[scan_code]);
   }
 }
 
