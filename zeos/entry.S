@@ -67,7 +67,40 @@
       pop %fs; \
       pop %gs;
 
-// SYSTEM CALL HANDLER
+/**
+ * System Call Handler Documentation
+ * ---------------------------------
+ * This is the main entry point for system calls in the kernel. When a user program
+ * executes an 'int 0x80' instruction (from a sys wrapper), control transfers here.
+ *
+ * Flow:
+ * 1. SAVE_ALL macro:
+ *    - Saves all general purpose registers
+ *    - Saves segment registers (gs, fs, es, ds)
+ *    - Sets up kernel data segment
+ *
+ * 2. Validation:
+ *    - Checks if system call number in EAX is valid:
+ *      * Must be non-negative
+ *      * Must be less than or equal to MAX_SYSCALL
+ *
+ * 3. System Call Execution:
+ *    - If valid, calls corresponding handler from sys_call_table using EAX as index
+ *    - If invalid, sets error code ENOSYS
+ *
+ * 4. Return:
+ *    - Stores return value back in user's EAX via stack
+ *    - RESTORE_ALL macro restores all saved registers
+ *    - iret returns to user mode
+ *
+ * Register State on Entry:
+ * - EAX: System call number (e.g. 4 for write)
+ * - Other registers: Can contain system call parameters
+ *   ! For write syscall:
+ *   - EDX: file descriptor
+ *   - ECX: buffer pointer
+ *   - EBX: size
+ **/
 ENTRY(system_call_handler)
       SAVE_ALL // Save the current context
       
