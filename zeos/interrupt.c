@@ -73,6 +73,20 @@ void setTrapHandler(int vector, void (*handler)(), int maxAccessibleFromPL)
   idt[vector].highOffset      = highWord((DWord)handler);
 }
 
+/**
+ * @brief Handler for system calls in the ZeOS operating system
+ * 
+ * This function handles system calls by:
+ * 1. Saving the current execution context using SAVE_ALL macro
+ * 2. Validating the system call number in EAX (must be between 0 and MAX_SYSCALL)
+ * 3. Calling the appropriate system call handler from sys_call_table
+ * 4. Returning ENOSYS error if system call number is invalid
+ * 5. Restoring the execution context using RESTORE_ALL macro
+ *
+ * The stack layout and register state is preserved according to the x86 calling convention.
+ * See entry.S for detailed stack layout documentation.
+ */
+void system_call_handler(void);
 
 void setIdt()
 {
@@ -85,5 +99,7 @@ void setIdt()
   /* ADD INITIALIZATION CODE FOR INTERRUPT VECTOR */
 
   set_idt_reg(&idtR);
-}
 
+  // ! Configure syscall handler
+  setInterruptHandler(0x80, system_call_handler, 3);
+}
