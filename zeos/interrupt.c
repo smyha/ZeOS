@@ -9,17 +9,19 @@
 
 #include <zeos_interrupt.h>
 
+typedef unsigned int Hexa;
+
 Gate idt[IDT_ENTRIES];
 Register    idtR;
 
 char char_map[] =
 {
   '\0','\0','1','2','3','4','5','6',
-  '7','8','9','0','\'','¡','\0','\0',
+  '7','8','9','0','\'','ï¿½','\0','\0',
   'q','w','e','r','t','y','u','i',
   'o','p','`','+','\0','\0','a','s',
-  'd','f','g','h','j','k','l','ñ',
-  '\0','º','\0','ç','z','x','c','v',
+  'd','f','g','h','j','k','l','ï¿½',
+  '\0','ï¿½','\0','ï¿½','z','x','c','v',
   'b','n','m',',','.','-','\0','*',
   '\0','\0','\0','\0','\0','\0','\0','\0',
   '\0','\0','\0','\0','\0','\0','\0','7',
@@ -73,6 +75,39 @@ void setTrapHandler(int vector, void (*handler)(), int maxAccessibleFromPL)
   idt[vector].highOffset      = highWord((DWord)handler);
 }
 
+/*
+ * Page Fault Exception
+ * 
+ * Handles page fault exceptions in the system. When a page fault occurs,
+ * it prints the address (EIP) where the fault happened in hexadecimal format
+ * and halts the system.
+ *
+ * The routine performs the following:
+ * - Receives the error code and EIP (instruction pointer) where fault occurred
+ * - Prints a diagnostic message with the EIP in hexadecimal format
+ * - Halts the system in an infinite loop
+ * 
+ * Parameters:
+ * @param error - Error code provided by CPU (unused)
+ * @param EIP   - Program counter value when the page fault occurred (only for routine)
+ *
+ * @note After printing the fault address, the system enters an infinite loop.
+ *       This is a fatal error handler - execution does not continue.
+ */
+void _page_fault_handler(void);                                           //HANDLER
+void _page_fault_routine(unsigned long error, unsigned long EIP){         //ROUTINE
+  printk("\n");
+  printk("Procces generates a PAGE FAULT exception at EIP: 0x");
+  
+  // Convert EIP (unsigned int) to HEX
+  char hex_digits[] = "0123456789ABCDEF";
+  for (int i = 7; i >= 0; i--)                  /*8 HEX digits = 32 bits*/
+    printc(hex_digits[(EIP >> (4 * i)) & 0xF]); /*Each digit is 4 bits*/
+  
+  printk("\n");
+  printk("Halting the system...\n");
+  while(1);     // Infinite loop
+}    
 
 void setIdt()
 {
@@ -83,6 +118,7 @@ void setIdt()
   set_handlers();
 
   /* ADD INITIALIZATION CODE FOR INTERRUPT VECTOR */
+  setInterruptHandler(14, _page_fault_handler, 0); /* Page Fault, PL0 */
 
   set_idt_reg(&idtR);
 }

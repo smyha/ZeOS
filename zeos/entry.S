@@ -51,3 +51,22 @@
       movl %edx, %ds;           \
       movl %edx, %es
 
+#define RESTORE_ALL \
+      pop %edx; \
+      pop %ecx; \
+      pop %ebx; \
+      pop %esi; \
+      pop %edi; \
+      pop %ebp; \
+      pop %eax; \
+      pop %ds; \
+      pop %es; \
+      pop %fs; \
+      pop %gs;
+
+ENTRY(_page_fault_handler)
+      # SAVE_ALL
+      # eip is located at the top of HW context stack
+      # pushl 0x30(%esp) -> push %eip (esp + 12*4)
+      call _page_fault_routine
+      # infinite loop
