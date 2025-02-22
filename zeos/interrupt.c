@@ -29,6 +29,7 @@
 Gate idt[IDT_ENTRIES];
 Register    idtR;
 
+
 /* #ticks since the system started */
 unsigned int zeos_ticks = 0;
 
@@ -93,6 +94,7 @@ void setTrapHandler(int vector, void (*handler)(), int maxAccessibleFromPL)
   idt[vector].highOffset      = highWord((DWord)handler);
 }
 
+void system_call_handler(void);
 
 /**
  * @brief Clock interrupt handling system
@@ -108,6 +110,7 @@ void setTrapHandler(int vector, void (*handler)(), int maxAccessibleFromPL)
 void clock_handler(void);                     // HANDLER
 void clock_routine() {                        // ROUTINE
   // NOTE: Showed time goes faster than the real one
+  ++zeos_ticks;
   zeos_show_clock();
 }
 
@@ -197,7 +200,8 @@ void setIdt()
 
   setInterruptHandler(32, clock_handler, 0);    /* Clock */
   setInterruptHandler(33, keyboard_handler, 0); /* Keyboard */
-  
+
+  setInterruptHandler(0x80, system_call_handler, 3); /* System calls */
 
   set_idt_reg(&idtR);
 }
