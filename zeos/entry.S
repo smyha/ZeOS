@@ -8,9 +8,6 @@
 // Errno.h
 #include "errno.h"
 
-// Errno.h
-#include "errno.h"
-
 /**************************************************/
 /**** Save & Restore ******************************/
 /**                                              **/
@@ -100,14 +97,6 @@
  *    - Stores return value back in user's EAX via stack
  *    - RESTORE_ALL macro restores all saved registers
  *    - iret returns to user mode
- *
- * Register State on Entry:
- * - EAX: System call number (e.g. 4 for write)
- * - Other registers: Can contain system call parameters
- *   ! For write syscall:
- *   - EDX: file descriptor
- *   - ECX: buffer pointer
- *   - EBX: size
  **/
 ENTRY(system_call_handler)
       SAVE_ALL // Save the current context
@@ -150,7 +139,7 @@ ENTRY(syscall_handler_sysenter)
       push %EBP               // User stack address
       pushfl
       push $__USER_CS
-push 4(%EBP)                  // User return address
+      push 4(%EBP)                  // User return address
       SAVE_ALL
       cmpl $0, %EAX
       jl sysenter_err

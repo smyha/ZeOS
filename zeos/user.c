@@ -120,5 +120,5 @@ int __attribute__ ((__section__(".text.main")))
   write(1, buffer, strlen(buffer));
   write(1, "\n", 1);
 
-    while(1) { }
+  while(1) { }
 }
