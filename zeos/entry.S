@@ -121,6 +121,50 @@ fin:
       RESTORE_ALL // Restore the context
       iret
 
+/*
+ * System call handler for SYSENTER instruction
+ * 
+ * This handler manages system calls made through the SYSENTER instruction.
+ * It performs the following steps:
+ * 1. Saves the user context (stack, flags, return address)
+ * 2. Validates the system call number in EAX
+ * 3. Executes the corresponding system call from sys_call_table
+ * 4. Restores user context and returns via SYSEXIT
+ *
+ * Parameters:
+ * - EAX: System call number
+ * - Other registers may contain system call parameters
+ *
+ * Returns:
+ * - System call result in EAX
+ * - ENOSYS error if invalid system call number
+ *
+ * Note: Interrupts are temporarily disabled during handling and re-enabled 
+ * before return
+ */
+ENTRY(syscall_handler_sysenter)
+      push $__USER_DS
+      push %EBP               // User stack address
+      pushfl
+      push $__USER_CS
+push 4(%EBP)                  // User return address
+      SAVE_ALL
+      cmpl $0, %EAX
+      jl sysenter_err
+      cmpl $MAX_SYSCALL, %EAX
+      jg sysenter_err
+      call *sys_call_table(, %EAX, 0x04)
+      jmp sysenter_fin
+sysenter_err:
+      movl $-ENOSYS, %EAX
+sysenter_fin:
+      movl %EAX, 0x18(%ESP)
+      RESTORE_ALL
+      movl (%ESP), %EDX // Return address
+      movl 12(%ESP), %ECX // User stack address
+      sti // Enable interrupts again
+      sysexit
+
 // CLOCK HANDLER
 ENTRY(clock_handler)
       SAVE_ALL

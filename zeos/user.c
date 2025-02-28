@@ -10,6 +10,9 @@ int add(int p1,int p2){
 
 int addASM(int,int);
 
+int gettime(); // SYSENTER
+int gettime_int(); // INT 0x80
+
 int test_gettime(){
   int time1, time2;
   

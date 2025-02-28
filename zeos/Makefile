@@ -35,6 +35,7 @@ SYSOBJ = \
 	hardware.o \
 	list.o \
 	suma.o \
+	func_MSR.o \
 
 LIBZEOS = -L . -l zeos
 
@@ -70,7 +71,12 @@ entry.s: entry.S $(INCLUDEDIR)/asm.h $(INCLUDEDIR)/segment.h
 suma.s: suma.S $(INCLUDEDIR)/asm.h
 	$(CPP) $(ASMFLAGS) -o $@ $<
 
+# ! wrapper.s
 wrappers.s: wrappers.S $(INCLUDEDIR)/asm.h
+	$(CPP) $(ASMFLAGS) -o $@ $<
+
+# ! func_MSR.s
+func_MSR.s: func_MSR.S $(INCLUDEDIR)/asm.h
 	$(CPP) $(ASMFLAGS) -o $@ $<
 
 sys_call_table.s: sys_call_table.S $(INCLUDEDIR)/asm.h $(INCLUDEDIR)/segment.h

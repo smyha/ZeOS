@@ -94,7 +94,67 @@ void setTrapHandler(int vector, void (*handler)(), int maxAccessibleFromPL)
   idt[vector].highOffset      = highWord((DWord)handler);
 }
 
+/**
+ * @brief Handler for system calls in the ZeOS operating system
+ * 
+ * This function handles system calls by:
+ * 1. Saving the current execution context using SAVE_ALL macro
+ * 2. Validating the system call number in EAX (must be between 0 and MAX_SYSCALL)
+ * 3. Calling the appropriate system call handler from sys_call_table
+ * 4. Returning ENOSYS error if system call number is invalid
+ * 5. Restoring the execution context using RESTORE_ALL macro
+ *
+ * The stack layout and register state is preserved according to the x86 calling convention.
+ * See entry.S for detailed stack layout documentation.
+ * 
+ * @note: (Deprecated) This function is replaced by syscall_handler_sysenter which uses the SYSENTER instruction.
+ */
 void system_call_handler(void);
+
+/**
+ * @brief Assembly "wrapper" for SYSENTER system call handler
+ * 
+ * This function serves as the entry point for system calls made using the SYSENTER instruction.
+ * It's declared in C but implemented in assembly (entry.S). The actual implementation:
+ * 
+ * 1. Saves the user context including:
+ *    - User stack address
+ *    - CPU flags
+ *    - User return address
+ *    - All general purpose registers
+ * 
+ * 2. Validates the system call number in EAX:
+ *    - Must be non-negative
+ *    - Must not exceed MAX_SYSCALL
+ * 
+ * 3. Executes the appropriate system call from sys_call_table
+ * 
+ * 4. Restores the user context and returns via SYSEXIT
+ * 
+ * @note This function is called automatically by the CPU when a user process
+ *       executes the SYSENTER instruction. It should not be called directly.
+ * 
+ * @return Returns to user space using SYSEXIT instruction
+ *         System call result is placed in EAX
+ *         Returns -ENOSYS if system call number is invalid
+ */
+void syscall_handler_sysenter(void);
+
+/**
+ * @brief Writes a value to a Model Specific Register (MSR)
+ * 
+ * Model Specific Registers are special registers used for controlling and
+ * monitoring processor-specific features. This function provides an interface
+ * to write 64-bit values to these registers.
+ * 
+ * @param msr The MSR number/identifier to write to
+ * @param value The 64-bit value to write to the specified MSR
+ * 
+ * @note This function is implemented in assembly (func_MSR.S) and uses
+ *       the WRMSR instruction which requires kernel privileges
+ * @see func_MSR.S
+ */
+void writeMSR(unsigned long msr, unsigned long value);
 
 /**
  * @brief Clock interrupt handling system
@@ -203,6 +263,13 @@ void setIdt()
 
   setInterruptHandler(0x80, system_call_handler, 3); /* System calls */
 
+  // ! Write MSR registers
+  writeMSR(0x174, __KERNEL_CS);         // Sets kernel code segment selector for SYSENTER
+  writeMSR(0x175, INITIAL_ESP);         // Sets the kernel stack pointer for SYSENTER 
+  writeMSR(0x176, (DWord)syscall_handler_sysenter);  // Sets the entry point address for FAST system calls
+  // writeMSR(0x176, (DWord)system_call_handler);  
+  /*@see: sched.h*/
+  
   set_idt_reg(&idtR);
 }
 
