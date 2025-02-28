@@ -16,6 +16,9 @@
 #define LECTURA 0
 #define ESCRIPTURA 1
 
+/* Referenced in interrupt.c */
+extern int zeos_ticks;
+
 int check_fd(int fd, int permissions)
 {
   if (fd!=1) return -9; /*EBADF*/
@@ -44,4 +47,17 @@ int sys_fork()
 
 void sys_exit()
 {  
+}
+
+/**
+ * @brief Returns the number of system ticks since system start
+ * 
+ * This system call retrieves the current value of the system timer counter
+ * (zeos_ticks) which tracks the number of timer interrupts since boot.
+ * Each tick represents one timer interrupt interval.
+ *
+ * @return Number of system ticks elapsed since system initialization
+ */
+void sys_gettime(){
+  return zeos_ticks;
 }
