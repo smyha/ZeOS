@@ -12,6 +12,10 @@ int add(int p1,int p2){
 int addASM(int,int);
 
 
+int write(int fd, char *buffer, int size); // SYSENTER syscall
+int write_int(int fd, char *buffer, int size); // INT 0x80 syscall
+
+
 int test_write() {
   // Strings to test
   char *test_buf, *picture;
@@ -21,7 +25,7 @@ int test_write() {
   // Test writing to stdout
   if (write(1, test_buf, 13) != 13) perror();
 
-  // Test writing a large buffer (485 bytes + \ns)
+  // Test writing a large picture (SMYHA nickname) buffer (485 bytes + \ns)
   picture = "                              __                   \n\
                              /\\ \\                  \n\
   ____    ___ ___     __  __ \\ \\ \\___       __     \n\
@@ -59,7 +63,7 @@ int __attribute__ ((__section__(".text.main")))
   tests_passed = 0;
 
   write(1, "\n", 1);
-  buffer = "Let's test some system calls\n";
+  buffer = "Let's test some system calls!\n";
   
   if (test_write()) tests_passed++;
 
