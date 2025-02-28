@@ -6,6 +6,9 @@
 
 #include <types.h>
 
+// Errno.h
+#include "errno.h"
+
 int errno;
 
 void itoa(int a, char *b)
@@ -41,5 +44,49 @@ int strlen(char *a)
   while (a[i]!=0) i++;
   
   return i;
+}
+
+
+/**
+ * @brief Prints the error message corresponding to the current errno value
+ * 
+ * Prints a human-readable error message to standard output (file descriptor 1)
+ * based on the current value of the global errno variable. Handles specific
+ * error codes with predefined messages:
+ * - EACCES: Permission denied
+ * - EFAULT: Bad address  
+ * - EINVAL: Invalid argument
+ * - EBADF: Bad file number
+ * For unrecognized error codes, prints "Unknown error: " followed by the errno value.
+ * 
+ * @note The function assumes errno contains a negative error code value
+ * @note For unknown errors, uses dynamic memory to convert errno to string
+ */
+void perror(void){
+  char *error;
+  switch (errno)
+  {
+  case -EACCES:
+    write(1, "Permission denied\n", 19);
+    break;
+  
+  case -EFAULT:
+    write(1, "Bad address\n", 1);
+    break;
+  
+  case -EINVAL:
+    write(1, "Invalid argument\n", 18);
+    break;
+  
+  case -EBADF:
+    write(1, "Bad file number\n", 17);
+    break;
+  
+  default:
+    itoa(errno, error);
+    write(1, "Unknown error: ", 16);
+    write(1, error, strlen(error));
+    break;
+  }
 }
 

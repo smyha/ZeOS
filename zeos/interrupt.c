@@ -7,6 +7,8 @@
 #include <hardware.h>
 #include <io.h>
 
+#include<stdint.h>
+
 #include <zeos_interrupt.h>
 
 typedef unsigned int Hexa;
@@ -38,11 +40,11 @@ unsigned int zeos_ticks = 0;
 char char_map[] =
 {
   '\0','\0','1','2','3','4','5','6',
-  '7','8','9','0','\'','�','\0','\0',
+  '7','8','9','0','\'','¡','\0','\0',
   'q','w','e','r','t','y','u','i',
   'o','p','`','+','\0','\0','a','s',
-  'd','f','g','h','j','k','l','�',
-  '\0','�','\0','�','z','x','c','v',
+  'd','f','g','h','j','k','l','ñ',
+  '\0','º','\0','ç','z','x','c','v',
   'b','n','m',',','.','-','\0','*',
   '\0','\0','\0','\0','\0','\0','\0','\0',
   '\0','\0','\0','\0','\0','\0','\0','7',
@@ -260,22 +262,22 @@ void keyboard_routine() {                     // ROUTINE
 }
 
 /**
- * @brief Initializes the IDT table
+ * @brief Initializes the Interrupt Descriptor Table (IDT) for ZeOS
  * 
- * This routine initializes the IDT table by setting the base and limit of the IDT
- * register and setting the handlers for the different interrupt vectors.
+ * This function configures the system's IDT by:
+ * 1. Setting up the IDT register (idtR) with the base address and size limit
+ * 2. Calling set_handlers() to initialize default interrupt handlers
+ * 3. Configuring interrupt 0x80 for system calls with system_call_handler at privilege level 3
+ * 4. Setting up Model-Specific Registers (MSRs) for fast system call entry via SYSENTER:
+ *    - MSR 0x174: Kernel code segment selector (__KERNEL_CS)
+ *    - MSR 0x175: System call entry point address (system_call_handler)
+ *    - MSR 0x176: Kernel stack pointer for SYSENTER (INITIAL_ESP)
+ * 5. Loading the IDT register configuration with set_idt_reg()
  * 
- * The routine sets the base of the IDT register to the address of the idt table and
- * the limit to the size of the table.
- * 
- * The routine then sets the handlers for the different interrupt vectors by calling
- * the setInterruptHandler() routine.
- * 
- * @see setInterruptHandler
- * @see idt
- * @see idtR
- * @see hardware.c enable_int(void)
- */
+ * This setup enables both traditional int 0x80 system calls and the faster SYSENTER
+ * instruction for transitioning from user mode to kernel mode.
+ * The stack layout and register state is preserved according to the x86 calling convention.
+ * @see: entry.S for detailed stack layout documentation.
 void setIdt()
 {
   /* Program interrups/exception service routines */
@@ -293,18 +295,5 @@ void setIdt()
 
   /* ADD INITIALIZATION CODE FOR INTERRUPT VECTOR */
 
-  setInterruptHandler(32, clock_handler, 0);    /* Clock */
-  setInterruptHandler(33, keyboard_handler, 0); /* Keyboard */
-setInterruptHandler(14, _page_fault_handler, 0); /* Page Fault, PL0 */
-  setInterruptHandler(0x80, system_call_handler, 3); /* System calls */
-
-  // ! Write MSR registers
-  writeMSR(0x174, __KERNEL_CS);         // Sets kernel code segment selector for SYSENTER
-  writeMSR(0x175, INITIAL_ESP);         // Sets the kernel stack pointer for SYSENTER 
-  writeMSR(0x176, (DWord)syscall_handler_sysenter);  // Sets the entry point address for FAST system calls
-  // writeMSR(0x176, (DWord)system_call_handler);  
-  /*@see: sched.h*/
-  
   set_idt_reg(&idtR);
 }
-
