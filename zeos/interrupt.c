@@ -278,6 +278,7 @@ void keyboard_routine() {                     // ROUTINE
  * instruction for transitioning from user mode to kernel mode.
  * The stack layout and register state is preserved according to the x86 calling convention.
  * @see: entry.S for detailed stack layout documentation.
+*/
 void setIdt()
 {
   /* Program interrups/exception service routines */
@@ -286,14 +287,22 @@ void setIdt()
   
   set_handlers();
 
-  /**
-   * setInterruptHandler(int position, void (*handler)(), int privLevel)
-   * position: position in the IDT table
-   * handler: pointer to the function that will handle the interrupt
-   * privLevel: maximum privilege level that can access the interrupt
-  */
-
   /* ADD INITIALIZATION CODE FOR INTERRUPT VECTOR */
 
+  setInterruptHandler(32, clock_handler, 0);    /* Clock */
+  setInterruptHandler(33, keyboard_handler, 0); /* Keyboard */
+  setTrapHandler(14, _page_fault_handler, 0);   /* Page Fault */
+
+  // ! Configure syscall handler
+
+  setInterruptHandler(0x80, system_call_handler, 3);
+  
+  // ! Write MSR registers
+  writeMSR(0x174, __KERNEL_CS);         // Sets kernel code segment selector for SYSENTER
+  writeMSR(0x175, INITIAL_ESP);         // Sets the kernel stack pointer for SYSENTER 
+  writeMSR(0x176, (DWord)syscall_handler_sysenter);  // Sets the entry point address for FAST system calls
+  // writeMSR(0x176, (DWord)system_call_handler);  
+  /*@see: sched.h*/
+  
   set_idt_reg(&idtR);
 }

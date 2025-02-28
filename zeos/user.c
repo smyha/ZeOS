@@ -15,18 +15,33 @@ int gettime(); // SYSENTER
 int gettime_int(); // INT 0x80
 
 int test_gettime(){
+  // Print a newline
+  write(1, "\n", 1);
+
   int time1, time2;
   
   // Test 1: Check if gettime returns valid values
   time1 = gettime();
+  
+  // Print time 1
+  write(1, "Time: ", 7);
+  itoa(time1, buffer);
+  write(1, buffer, strlen(buffer));
+  write(1, "\n", 1);
+
   if (time1 < 0) 
     return -1;
   
-
   // Test 2: Check if time increases
   int i;
-  for (i = 0; i < 1000000; i++); // Small delay
+  for (i = 0; i < 1e9; i++); // Small delay
   time2 = gettime();
+
+  // Print time 2
+  write(1, "Time: ", 7);
+  itoa(time2, buffer);
+  write(1, buffer, strlen(buffer));
+
   if (time2 <= time1) 
     return -1;
 
@@ -39,12 +54,13 @@ int test_gettime(){
   return 1;
 }
 
-
 int write(int fd, char *buffer, int size); // SYSENTER syscall
 int write_int(int fd, char *buffer, int size); // INT 0x80 syscall
 
-
 int test_write() {
+  // Print a newline
+  write(1, "\n", 1);
+
   // Strings to test
   char *test_buf, *picture;
   
@@ -94,13 +110,15 @@ int __attribute__ ((__section__(".text.main")))
   buffer = "Let's test some system calls!\n";
   
   if (test_write()) tests_passed++;
-
+  if (test_gettime()) tests_passed++;
+  
   // Convert number of tests passed to string
   itoa(tests_passed, buffer);
   
   // Print results
   write(1, "\nTests passed: ", 16);
   write(1, buffer, strlen(buffer));
+  write(1, "\n", 1);
 
     while(1) { }
 }
