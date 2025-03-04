@@ -130,3 +130,9 @@ unsigned long get_ticks(void) {
 
         return ticks;
 }
+
+void strcpy(char* dst, char* src) {
+  for (int i = 0; src[i]; ++i) {
+  	dst[i] = src[i];
+  } 
+}

@@ -168,8 +168,8 @@ ENTRY(clock_handler)
 // KEYBOARD HANDLER
 ENTRY(keyboard_handler) 
       SAVE_ALL
-      EOI                     // !
       call keyboard_routine
+      EOI                     // !
       RESTORE_ALL
       iret
 

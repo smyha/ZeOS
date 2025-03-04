@@ -91,12 +91,17 @@ int sys_write(int fd, char *buffer, int size)
   // 2.Check buffer (ony verify that is not NULL)
   if (buffer == NULL) 
     return -EFAULT; /*NULL pointer*/
-  
-  // 3. Check size
+ 
+  // 3. Check buffer access 
+  if(!access_ok(VERIFY_READ, buffer, size)) {
+    return -EFAULT;
+  }
+
+  // 4. Check size
   if (size < 0) 
     return -EINVAL; /*Invalid argument*/
 
-  // 4. Write to the device
+  // 5. Write to the device
   remaining_bytes = size;
   offset = 0;
 

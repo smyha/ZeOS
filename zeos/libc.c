@@ -63,22 +63,24 @@ int strlen(char *a)
  * @note For unknown errors, uses dynamic memory to convert errno to string
  */
 void perror(void){
-  char *error;
+  // Buffer instead of pointer (pointer might point anywhere in the read-only data segtion, and destroy what was previously there)
+  char error[3];
+  
   switch (errno)
   {
-  case -EACCES:
+  case EACCES:
     write(1, "Permission denied\n", 19);
     break;
   
-  case -EFAULT:
+  case EFAULT:
     write(1, "Bad address\n", 1);
     break;
   
-  case -EINVAL:
+  case EINVAL:
     write(1, "Invalid argument\n", 18);
     break;
   
-  case -EBADF:
+  case EBADF:
     write(1, "Bad file number\n", 17);
     break;
   

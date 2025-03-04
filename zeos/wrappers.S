@@ -2,14 +2,12 @@
 
 # ECX and EBX which will be modified by sysexit 
 #define SAVE_REG \
-    pushl %ebx;\
     pushl %ecx;\
     pushl %edx;
 
 #define RESTORE_REG \
     popl %edx;\
     popl %ecx;\
-    popl %ebx;
 
 # ------------------------- FAST SYSTEM CALL WRAPPERS ------------------------- 
 
@@ -29,7 +27,8 @@ ENTRY(write)
     movl $4, %eax        # System call number for write (4) 
     
     # ! Follow the System V ABI contract 
-    # Save registers that will be used here 
+    # Save registers that will be used here
+    pushl %ebx 
     SAVE_REG        
 
     movl 8(%ebp), %edx   # First param: fd -> edx 
@@ -52,6 +51,7 @@ write_return:
 
     # Restore saved registers 
     RESTORE_REG
+    popl %ebx
 
     # Check if it returns an error (negative value) 
     cmpl $0, %eax        # Compare result with 0 
