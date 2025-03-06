@@ -69,24 +69,24 @@ void perror(void){
   switch (errno)
   {
   case EACCES:
-    write(1, "Permission denied\n", 19);
+    write(1, "Permission denied\n", 18);
     break;
   
   case EFAULT:
-    write(1, "Bad address\n", 1);
+    write(1, "Bad address\n", 12);
     break;
   
   case EINVAL:
-    write(1, "Invalid argument\n", 18);
+    write(1, "Invalid argument\n", 17);
     break;
   
   case EBADF:
-    write(1, "Bad file number\n", 17);
+    write(1, "Bad file number\n", 16);
     break;
   
   default:
     itoa(errno, error);
-    write(1, "Unknown error: ", 16);
+    write(1, "Unknown error: ", 15);
     write(1, error, strlen(error));
     break;
   }

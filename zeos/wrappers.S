@@ -29,11 +29,13 @@ ENTRY(write)
     # ! Follow the System V ABI contract 
     # Save registers that will be used here
     pushl %ebx 
-    SAVE_REG        
 
     movl 8(%ebp), %edx   # First param: fd -> edx 
     movl 12(%ebp), %ecx  # Second param: buffer -> ecx 
     movl 16(%ebp), %ebx  # Third param: size -> ebx 
+
+
+    SAVE_REG        
 
     # Store return addres write_return 
     pushl $write_return
