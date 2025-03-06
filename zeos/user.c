@@ -106,14 +106,14 @@ int __attribute__ ((__section__(".text.main")))
   // Run tests
   tests_passed = 0;
 
+  write(1, "\n", 1);
+
   if (write(1, "AAA\n", -1)) {
 	// write(1, "error\n", 6);
   	perror();
 	tests_passed++;
   }
 
-
-  write(1, "\n", 1);
   buffer = "Let's test some system calls!\n";
   
   if (test_write()) tests_passed++;

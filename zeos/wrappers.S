@@ -34,7 +34,6 @@ ENTRY(write)
     movl 12(%ebp), %ecx  # Second param: buffer -> ecx 
     movl 16(%ebp), %ebx  # Third param: size -> ebx 
 
-
     SAVE_REG        
 
     # Store return addres write_return 
