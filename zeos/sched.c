@@ -200,6 +200,24 @@ void init_sched()
 	}
 }
 
+
+void inner_task_switch(union task_union *new)
+{	
+	// 1. Update the TSS to point to the new task's kernel stack
+	tss.esp0 = KERNEL_ESP(new);
+
+	// 2. Change the user address space by updating the current page directory 
+	// Write cr3 register with the new task's page directory
+	set_cr3(new->task.dir_pages_baseAddr);
+	// set_cr3(get_DIR(&new->task)); // TLB flush -> new address space
+
+	// 3. Update the MSR register 0x175 for sysenter
+	writeMSR(0x175, (unsigned long)tss.esp0);
+
+	// 4. Switch current task stack to the new task stack values
+	switch_stack(&(current()->kernel_esp), new->task.kernel_esp);
+}
+
 struct task_struct* current()
 {
   int ret_value;
