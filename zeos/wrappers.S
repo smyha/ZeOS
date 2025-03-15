@@ -122,6 +122,56 @@ gettime_end:
     popl %ebp            # Restore old ebp 
     ret                  # Return to caller 
 
+/** ENTRY(getpid) - System call wrapper for getpid 
+ *  int getpid() - Returns the process ID of the current process
+ *  Return: 
+ *      int - The process ID of the current process
+ */
+ENTRY(getpid)
+    pushl %ebp            # Save old ebp 
+    movl %esp, %ebp       # Set up new stack frame 
+
+    movl $20, %eax        # System call number for getpid (20)
+    
+    # ! Follow the System V ABI contract 
+    # Save registers that will be used here 
+    SAVE_REG        
+
+    # No arguments to pass
+
+    # Store return addres getpid_return 
+    pushl $getpid_return
+
+    # Create fake dynamic link 
+    pushl %ebp
+    movl %esp, %ebp
+
+    SYSENTER            # Generate FAST system call interrupt
+
+getpid_return:
+    # Clean up the stack 
+    popl %ebp
+    addl $4, %esp
+
+    # Restore saved registers 
+    RESTORE_REG
+
+    # Check if it returns an error (negative value) 
+    cmpl $0, %eax        # Compare result with 0 
+    jge getpid_end        # If positive or zero, return as is
+
+getpid_error:
+    # Handle error case 
+    negl %eax            # Convert to positive value 
+    movl %eax, errno     # Store error code in errno 
+    movl $-1, %eax       # Return -1 to indicate error 
+
+    addl $8, %esp        # Put @ret at the top of the stack
+
+getpid_end:
+    movl %ebp, %esp      # Restore stack pointer 
+    popl %ebp            # Restore old ebp 
+    ret                  # Return to caller
 
 # ------------------------- SYSTEM CALL WRAPPERS ------------------------- 
 
@@ -188,3 +238,34 @@ gettimeINT_end:
     movl %ebp, %esp      # Restore stack pointer 
     popl %ebp            # Restore old ebp 
     ret                  # Return to caller 
+
+ENTRY(getpid_int)
+    pushl %ebp            # Save old ebp 
+    movl %esp, %ebp       # Set up new stack frame 
+
+    # ! Follow the ABI contract 
+    # Save the registers 
+    SAVE_REG
+
+    # No arguments to pass 
+
+    movl $20, %eax        # System call number for getpid (20) 
+    int $0x80
+
+    # Check if it returns an error (negative value) 
+    cmpl $0, %eax        # Compare result with 0 
+    jge getpidINT_end     # If positive or zero, return as is
+
+getpidINT_error:
+    # Handle error case 
+    negl %eax            # Convert to positive value 
+    movl %eax, errno     # Store error code in errno 
+    movl $-1, %eax       # Return -1 to indicate error
+
+getpidINT_end:
+    # Restore the registers 
+    RESTORE_REG
+
+    movl %ebp, %esp      # Restore stack pointer 
+    popl %ebp            # Restore old ebp 
+    ret                  # Return to caller

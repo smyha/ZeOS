@@ -38,6 +38,15 @@ int sys_ni_syscall()
 	return -38; /*ENOSYS*/
 }
 
+
+/**
+ * @brief Returns the Process ID (PID) of the current process
+ *
+ * This function is a system call implementation that retrieves the
+ * Process ID of the currently executing process.
+ *
+ * @return The PID of the current process
+ */
 int sys_getpid()
 {
 	return current()->PID;

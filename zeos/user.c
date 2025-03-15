@@ -94,6 +94,24 @@ int test_write() {
   return 1;
 }
 
+int getpid(); // SYSENTER
+int getpid_int(); // INT 0x80
+
+int test_getpid() {
+  // Print a newline
+  write(1, "\n", 1);
+
+  // Test getpid
+  pid = getpid();
+  
+  // Print PID (should be 1)
+  write(1, "PID: ", 5);
+  itoa(pid, buffer);
+  write(1, buffer, strlen(buffer));
+  write(1,  "\n", 1);
+
+  return 1;
+}
 
 int __attribute__ ((__section__(".text.main")))
   main(void)
@@ -118,6 +136,7 @@ int __attribute__ ((__section__(".text.main")))
   
   if (test_write()) tests_passed++;
   if (test_gettime()) tests_passed++;
+  if (test_getpid()) tests_passed++;
   
   // Convert number of tests passed to string
   itoa(tests_passed, buffer);
