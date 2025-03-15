@@ -143,6 +143,6 @@ int sys_write(int fd, char *buffer, int size)
  *
  * @return Number of system ticks elapsed since system initialization
  */
-void sys_gettime(){
+int sys_gettime(){
   return zeos_ticks;
 }

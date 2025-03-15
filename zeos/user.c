@@ -102,10 +102,11 @@ int test_getpid() {
   write(1, "\n", 1);
 
   // Test getpid
+  buffer = "Testing getpid: PID = ";
   pid = getpid();
   
   // Print PID (should be 1)
-  write(1, "PID: ", 5);
+  write(1, buffer, strlen(buffer));
   itoa(pid, buffer);
   write(1, buffer, strlen(buffer));
   write(1,  "\n", 1);

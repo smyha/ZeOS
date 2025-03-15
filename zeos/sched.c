@@ -104,13 +104,13 @@ void init_idle (void)
 
 	// From the position of the list get the task_struct pointer of the process
 	struct task_struct *idle_pcb = list_head_to_task_struct(first_free);
-	union task_union *idle_union = (union task_union*)idle_pcb;
+	union task_union *idle_union = (union task_union*)idle_pcb;	
 
 	// 1. Assign PID 0 to the idle task
 	idle_pcb->PID = 0;
 
 	// 2. Initalize the task's page directory
-	allocate_DIR(idle_union);
+	allocate_DIR(idle_pcb);
 	
 	// EXECUTION CONTEXT
 
@@ -162,7 +162,7 @@ void init_task1(void)
 	task1_pcb->PID = 1;
 
 	// 2. Initalize the task's page directory
-	allocate_DIR(task1_union);
+	allocate_DIR(task1_pcb);
 
 	// 3. Confifure the direction space for the task 1 (data, code, stack) 
 	// map physical pages and add translation to the page table (logical-physical) 

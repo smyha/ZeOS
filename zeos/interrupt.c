@@ -37,6 +37,9 @@ Register    idtR;
 /* #ticks since the system started */
 unsigned int zeos_ticks = 0;
 
+extern struct task_struct *idle_task;
+extern struct task_struct *task1;
+
 char char_map[] =
 {
   '\0','\0','1','2','3','4','5','6',
@@ -252,6 +255,15 @@ void keyboard_routine() {                     // ROUTINE
   
   // Check if it's a make (0) or break (1) code
   if (!pressed) { // key press
+
+    // For testing task_switch
+    if (char_map[scan_code] == '0') {
+      printk("Switching to idle task...\n");
+      task_switch((union task_union *)idle_task);
+    }
+    if (char_map[scan_code] == '1') {
+      task_switch((union task_union *)task1);
+    } 
 
     // If the key is not mapped, print 'C'
     if (char_map[scan_code] == '\0')

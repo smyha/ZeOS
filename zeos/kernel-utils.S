@@ -70,40 +70,16 @@ ENTRY(switch_stack)
     */
 
     # Store the current value of the EBP register in the PCB of the current task
-    movl 4(%esp), %eax   # First parameter: old_ebp
+    movl 4(%esp), %eax   # First parameter: old_esp
     movl %ebp, (%eax)    # Store the current EBP value the pointed direction (old_ebp) [PCB]
     # current()->kernel_esp = EBP (old_ebp)
 
-    # Load the new value of the EBP register from the PCB of the new task
-    movl 8(%esp), %ebp   # Second parameter: new_ebp
-    # ebp = new_ebp
+    # Load the new stack pointer from the second parameter into the ESP register
+    # This will change the stack pointer to the new task's kernel stack
+    movl 8(%esp), %esp   # Second parameter: new_esp
+    # esp = new_esp
 
     # Restore ebp of the new task and return to the caller
     popl %ebp            # Restore the EBP from the new task
     ret                  # Return to the direction stored in the new stack 
     # [inner_task_switch]
-
-/*
-* NOTE ON THE SWITCH_STACK IMPLEMENTATION
-*
-* This implementation deliberately does NOT modify ESP directly to switch contexts. 
-* This is because changing ESP directly can lead to stack corruption and other issues.
-* 
-* ESP <- new.task -> kernel_esp 
-* 
-* Instead, use a more elegant and safer approach:
-*
-* 1. Modify EBP instead of ESP:
-* - The current EBP is saved on the PCB of the task leaving the CPU
-* - The EBP is loaded from the PCB of the new task
-*
-* 2. Take advantage of the RET instruction for the actual switch:
-* - Executing RET jumps to the address saved on the new task's stack
-* - This address points just after the call to switch_stack in inner_task_switch
-*
-* Advantages of this approach:
-* - Maintains stack frame integrity throughout function execution
-* - Avoids parameter access issues that would occur if ESP were modified directly
-* - Allows the current function to complete before actually changing the execution flow
-* - Take advantage of the processor's function return mechanism to perform the jump
-*/
