@@ -12,12 +12,22 @@
 #define NR_TASKS      10
 #define KERNEL_STACK_SIZE	1024
 
+#define DEFAULT_QUANTUM 1000 /* 1000 ticks = 1 quantum */
+
 enum state_t { ST_RUN, ST_READY, ST_BLOCKED };
 
 struct task_struct {
   int PID;			/* Process ID. This MUST be the first field of the struct. */
   page_table_entry * dir_pages_baseAddr;
-  struct list_head list; /* To enqueue the process in the readyqueue */
+
+  struct list_head list; /* To enqueue the process in queues */
+  struct list_head kids; /* To enqueue the children in the children list */
+  struct task_struct *parent; /* Pointer to the parent process */
+
+  enum state_t state; /* Process state */
+  int quantum; /* Remaining quantum */
+  int pending_unblocks; /* Number of pending unblocks */
+
   unsigned long kernel_esp; /* ESP saved during a context switch */
 };
 

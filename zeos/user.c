@@ -114,6 +114,42 @@ int test_getpid() {
   return 1;
 }
 
+int fork(); // SYSENTER
+int fork_int(); // INT 0x80
+
+int test_fork() {
+  // Print a newline
+  write(1, "\n", 1);
+
+  // Test fork
+  pid = fork();
+  
+  // Print PID (should be 2)
+  write(1, "Testing fork: PID = ", 20);
+  itoa(pid, buffer);
+  write(1, buffer, strlen(buffer));
+  write(1,  "\n", 1);
+
+  if (pid == 0) {
+    write(1, "Child process\n", 14);
+    int child_pid = getpid();
+    write(1, "Child PID: ", 11);
+    itoa(child_pid, buffer);
+    write(1, buffer, strlen(buffer));
+    // exit();
+  } else if (pid > 0) {
+    write(1, "Parent process\n", 15);
+    int parent_pid = getpid();
+    write(1, "Parent PID: ", 12);
+    itoa(parent_pid, buffer);
+    write(1, buffer, strlen(buffer));
+  } else {
+    write(1, "Error forking\n", 14);
+  }
+
+  return 1;
+}
+
 int __attribute__ ((__section__(".text.main")))
   main(void)
 {
@@ -138,6 +174,7 @@ int __attribute__ ((__section__(".text.main")))
   if (test_write()) tests_passed++;
   if (test_gettime()) tests_passed++;
   if (test_getpid()) tests_passed++;
+  if (test_fork()) tests_passed++;
   
   // Convert number of tests passed to string
   itoa(tests_passed, buffer);

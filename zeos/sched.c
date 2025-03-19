@@ -77,6 +77,10 @@ void cpu_idle(void)
  * that executes when no other processes are ready to run. The idle process uses
  * only the pages containing kernel code and data, which are already initialized
  * in the kernel's page table during the general memory initialization.
+ * 
+ * Has no hardware context or software context. Need only save the information 
+ * task_switch will need to launch one process and make the change. 
+ * This information is ebp (any value, 0) and return address (cpu_idle).
  *
  * The initialization process includes:
  * 1. Obtaining a free task structure from the freequeue
@@ -100,7 +104,7 @@ void cpu_idle(void)
 void init_idle (void)
 {
 	struct list_head *first_free = list_first(&freequeue);	// Get the first free task
-	list_del(first_free);									// Remove it from the freequeue	
+	list_del(first_free);									// Remove it from the freequeue
 
 	// From the position of the list get the task_struct pointer of the process
 	struct task_struct *idle_pcb = list_head_to_task_struct(first_free);
@@ -109,7 +113,15 @@ void init_idle (void)
 	// 1. Assign PID 0 to the idle task
 	idle_pcb->PID = 0;
 
+	// Initalize variables
+	idle_pcb->quantum = DEFAULT_QUANTUM;
+	idle_pcb->pending_unblocks = 0;
+	idle_pcb->state = ST_READY;	// ! Mark as ready
+	INIT_LIST_HEAD(&idle_pcb->kids);
+
 	// 2. Initalize the task's page directory
+	// Init dir_pages_baseAddr with a new base address of the 
+	// page directory of the idle task, to save his address space 
 	allocate_DIR(idle_pcb);
 	
 	// EXECUTION CONTEXT
@@ -120,7 +132,8 @@ void init_idle (void)
 	idle_union->stack[KERNEL_STACK_SIZE-2] = 0;				   // Register EBP (undoing the dynamic link)
 
 	// 4. Save the pointer into stack where was saved initial EBP
-	idle_union->task.kernel_esp = (DWord)&(idle_union->stack[KERNEL_STACK_SIZE-2]); // kernel_esp = EBP
+	idle_union->task.kernel_esp = (DWord)&(idle_union->stack[KERNEL_STACK_SIZE-2]); 
+	// kernel_esp -> EBP (content: top of the stack)
 
 	// 5. Initalize the global variable idle_task
 	idle_task = idle_pcb;
@@ -148,6 +161,9 @@ void init_idle (void)
  *
  * This function is critical for system initialization as it bridges from kernel-only
  * operation to the execution of the first user process.
+ * 
+ * @see allocate_DIR
+ * @see set_user_pages in mm.c: Configures the user address space for a process by mapping physical pages
  */
 void init_task1(void)
 {
@@ -161,23 +177,37 @@ void init_task1(void)
 	// 1. Assign PID 1 to the task 1
 	task1_pcb->PID = 1;
 
+	// Initalize variables
+	task1_pcb->quantum = DEFAULT_QUANTUM;
+	task1_pcb->pending_unblocks = 0;
+	task1_pcb->state = ST_RUN;	// ! Mark as running 
+	INIT_LIST_HEAD(&task1_pcb->kids);
+
 	// 2. Initalize the task's page directory
 	allocate_DIR(task1_pcb);
 
-	// 3. Confifure the direction space for the task 1 (data, code, stack) 
-	// map physical pages and add translation to the page table (logical-physical) 
+	// ! NOTE: Kernel region alredy configured and is the same for all processes
+
+	/**
+	 * 3. Confifure the direction space for the task 1 (code + data) 
+	 * map physical pages containing user address space (code + data) 
+	 * and add translation of these pages to the page table (logical-physical) 
+	*/ 
 	set_user_pages(task1_pcb);
 
 	// 4. Update TSS.ESP0 to point to system stack of task 1
 	tss.esp0 = KERNEL_ESP(task1_union);
 
-	// If using sysenter, update MSR esp0 
+	// If using sysenter, update MSR esp0 with the new task's kernel stack pointer
+	// SYSENTER_ESP_MSR register 0x175: System call entry point address (system_call_handler)  
 	writeMSR(0x175, (unsigned long)tss.esp0);		
 
 	// 5. Set his page directory as the current page directory
 	set_cr3(task1_union->task.dir_pages_baseAddr);
+	// set_cr3(task1_pcb->dir_pages_baseAddr);
 	// set_cr3(get_DIR(task1_union));
 
+	// 6. Store a global reference to this task in the task1 variable
 	task1 = task1_pcb;
 }
 
@@ -208,8 +238,8 @@ void inner_task_switch(union task_union *new)
 
 	// 2. Change the user address space by updating the current page directory 
 	// Write cr3 register with the new task's page directory
-	set_cr3(new->task.dir_pages_baseAddr);
-	// set_cr3(get_DIR(&new->task)); // TLB flush -> new address space
+	set_cr3(new->task.dir_pages_baseAddr); // TLB flush -> new address space
+	// set_cr3(get_DIR(&new->task)); 
 
 	// 3. Update the MSR register 0x175 for sysenter
 	writeMSR(0x175, (unsigned long)tss.esp0);
