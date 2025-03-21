@@ -62,12 +62,10 @@ write_error:
     # Handle error case 
     negl %eax            # Convert to positive value 
     movl %eax, errno     # Store error code in errno 
-    movl $-1, %eax       # Return -1 to indicate error 
-
-    addl $8, %esp        # Put @ret at the top of the stack 
+    movl $-1, %eax       # Return -1 to indicate error             
 
 write_end:
-    movl %ebp, %esp      # Restore stack pointer 
+    movl %ebp, %esp      # Restore stack pointer  esp = ebp
     popl %ebp            # Restore old ebp 
     ret                  # Return to caller 
 
@@ -104,18 +102,6 @@ gettime_return:
 
     # Restore saved registers 
     RESTORE_REG
-
-    # Check if it returns an error (negative value) 
-    cmpl $0, %eax        # Compare result with 0 
-    jge gettime_end        # If positive or zero, return as is 
-
-gettime_error:
-    # Handle error case 
-    negl %eax            # Convert to positive value 
-    movl %eax, errno     # Store error code in errno 
-    movl $-1, %eax       # Return -1 to indicate error 
-
-    addl $8, %esp        # Put @ret at the top of the stack 
 
 gettime_end:
     movl %ebp, %esp      # Restore stack pointer 
@@ -164,9 +150,7 @@ getpid_error:
     # Handle error case 
     negl %eax            # Convert to positive value 
     movl %eax, errno     # Store error code in errno 
-    movl $-1, %eax       # Return -1 to indicate error 
-
-    addl $8, %esp        # Put @ret at the top of the stack
+    movl $-1, %eax       # Return -1 to indicate error        
 
 getpid_end:
     movl %ebp, %esp      # Restore stack pointer 
@@ -216,11 +200,135 @@ fork_error:
     # Handle error case 
     negl %eax            # Convert to positive value 
     movl %eax, errno     # Store error code in errno 
-    movl $-1, %eax       # Return -1 to indicate error 
-
-    addl $8, %esp        # Put @ret at the top of the stack
+    movl $-1, %eax       # Return -1 to indicate error        
 
 fork_end:
+    movl %ebp, %esp      # Restore stack pointer 
+    popl %ebp            # Restore old ebp 
+    ret                  # Return to caller
+
+
+/** ENTRY(exit) - System call wrapper for exit
+ *  void exit(void) - Terminates the calling process with the given status
+ */
+ENTRY(exit)
+    pushl %ebp            # Save old ebp 
+    movl %esp, %ebp       # Set up new stack frame 
+
+    movl $1, %eax        # System call number for exit (1)
+    
+    # ! Follow the System V ABI contract 
+    # Save registers that will be used here 
+    SAVE_REG        
+
+    # Store return addres exit_return 
+    pushl $exit_return
+
+    # Create fake dynamic link 
+    pushl %ebp
+    movl %esp, %ebp
+
+    SYSENTER            # Generate FAST system call interrupt
+
+exit_return:
+    # Clean up the stack 
+    popl %ebp
+    addl $4, %esp
+
+    # Restore saved registers 
+    RESTORE_REG
+
+    # ! No need to check for error as exit never returns
+
+    movl %ebp, %esp      # Restore stack pointer 
+    popl %ebp            # Restore old ebp 
+    ret                  # Return to caller
+
+/** ENTRY(block) - System call wrapper for block
+ *  void block(void) - Blocks the calling process until it is unblocked
+ */
+ENTRY(block)
+    pushl %ebp            # Save old ebp 
+    movl %esp, %ebp       # Set up new stack frame 
+
+    movl $12, %eax        # System call number for block (12)
+    
+    # ! Follow the System V ABI contract 
+    # Save registers that will be used here 
+    SAVE_REG        
+
+    # No arguments to pass
+
+    # Store return addres block_return 
+    pushl $block_return
+
+    # Create fake dynamic link 
+    pushl %ebp
+    movl %esp, %ebp
+
+    SYSENTER            # Generate FAST system call interrupt
+
+block_return:
+    # Clean up the stack 
+    popl %ebp
+    addl $4, %esp
+
+    # Restore saved registers 
+    RESTORE_REG
+
+    # ! No need to check for error as block never returns
+
+    movl %ebp, %esp      # Restore stack pointer 
+    popl %ebp            # Restore old ebp 
+    ret                  # Return to caller
+
+/** ENTRY(unblock) - System call wrapper for unblock
+    * int unblock(int pid) - Unblocks the process with the given process ID
+    * Parameters:
+    *   - pid (8(%esp)): Process ID of the process to unblock
+    * Returns:
+    *   - 0 on success, -1 on error
+*/
+ENTRY(unblock)
+    pushl %ebp            # Save old ebp 
+    movl %esp, %ebp       # Set up new stack frame 
+
+    movl $13, %eax        # System call number for unblock (13)
+    
+    # ! Follow the System V ABI contract 
+    # Save registers that will be used here 
+    SAVE_REG        
+
+    movl 8(%ebp), %edx   # First param: pid -> edx 
+
+    # Store return addres unblock_return 
+    pushl $unblock_return
+
+    # Create fake dynamic link 
+    pushl %ebp
+    movl %esp, %ebp
+
+    SYSENTER            # Generate FAST system call interrupt
+
+unblock_return:
+    # Clean up the stack 
+    popl %ebp
+    addl $4, %esp
+
+    # Restore saved registers 
+    RESTORE_REG
+
+    # Check if it returns an error (negative value) 
+    cmpl $0, %eax        # Compare result with 0 
+    jge unblock_end        # If positive or zero, return as is
+
+unblock_error:
+    # Handle error case 
+    negl %eax            # Convert to positive value 
+    movl %eax, errno     # Store error code in errno 
+    movl $-1, %eax       # Return -1 to indicate error
+
+unblock_end:
     movl %ebp, %esp      # Restore stack pointer 
     popl %ebp            # Restore old ebp 
     ret                  # Return to caller
@@ -251,7 +359,6 @@ writeINT_error:
     negl %eax            # Convert to positive value 
     movl %eax, errno     # Store error code in errno 
     movl $-1, %eax       # Return -1 to indicate error 
-
 writeINT_end:
     # Restore saved registers 
     RESTORE_REG
@@ -281,7 +388,7 @@ gettimeINT_error:
     # Handle error case 
     negl %eax            # Convert to positive value 
     movl %eax, errno     # Store error code in errno 
-    movl $-1, %eax       # Return -1 to indicate error    
+    movl $-1, %eax       # Return -1 to indicate error   
 
 gettimeINT_end:
     # Restore the registers 
@@ -303,16 +410,6 @@ ENTRY(getpid_int)
 
     movl $20, %eax        # System call number for getpid (20) 
     int $0x80
-
-    # Check if it returns an error (negative value) 
-    cmpl $0, %eax        # Compare result with 0 
-    jge getpidINT_end     # If positive or zero, return as is
-
-getpidINT_error:
-    # Handle error case 
-    negl %eax            # Convert to positive value 
-    movl %eax, errno     # Store error code in errno 
-    movl $-1, %eax       # Return -1 to indicate error
 
 getpidINT_end:
     # Restore the registers 
@@ -346,6 +443,81 @@ forkINT_error:
     movl $-1, %eax       # Return -1 to indicate error
 
 forkINT_end:
+    # Restore the registers 
+    RESTORE_REG
+
+    movl %ebp, %esp      # Restore stack pointer 
+    popl %ebp            # Restore old ebp 
+    ret                  # Return to caller
+
+ENTRY(exit_int)
+    pushl %ebp            # Save old ebp 
+    movl %esp, %ebp       # Set up new stack frame 
+
+    # ! Follow the ABI contract 
+    # Save the registers 
+    SAVE_REG
+
+    movl $1, %eax        # System call number for exit (1) 
+    int $0x80
+
+    # ! No need to check for error as exit never returns
+
+    # Restore the registers 
+    RESTORE_REG
+
+    movl %ebp, %esp      # Restore stack pointer 
+    popl %ebp            # Restore old ebp 
+    ret                  # Return to caller
+
+# 
+ENTRY(block_int)
+    pushl %ebp            # Save old ebp 
+    movl %esp, %ebp       # Set up new stack frame 
+
+    # ! Follow the ABI contract 
+    # Save the registers 
+    SAVE_REG
+
+    # No arguments to pass 
+
+    movl $12, %eax        # System call number for block (12) 
+    int $0x80
+
+    # ! No need to check for error as block never returns
+
+    # Restore the registers 
+    RESTORE_REG
+
+    movl %ebp, %esp      # Restore stack pointer 
+    popl %ebp            # Restore old ebp 
+    ret                  # Return to caller
+
+# 
+ENTRY(unblock_int)
+    pushl %ebp            # Save old ebp 
+    movl %esp, %ebp       # Set up new stack frame 
+
+    # ! Follow the ABI contract 
+    # Save the registers 
+    SAVE_REG
+
+    movl 8(%ebp), %edx   # First param: pid -> edx 
+
+    movl $13, %eax        # System call number for unblock (13) 
+    int $0x80
+
+    # Check if it returns an error (negative value) 
+    cmpl $0, %eax        # Compare result with 0 
+    jge unblockINT_end   # If positive or zero, return as is
+
+unblockINT_error:
+    # Handle error case 
+    negl %eax            # Convert to positive value 
+    movl %eax, errno     # Store error code in errno 
+    movl $-1, %eax       # Return -1 to indicate error
+
+unblockINT_end:
     # Restore the registers 
     RESTORE_REG
 

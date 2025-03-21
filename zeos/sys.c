@@ -25,6 +25,9 @@ extern int zeos_ticks;
 /* Referenced in sched.c */
 extern struct list_head freequeue;
 extern struct list_head readyqueue;
+extern struct list_head blocked;
+
+extern struct task_struct *idle_task;
 
 // Process ID counter
 // 0 and 1 are reserved for the idle task and the first process
@@ -33,8 +36,6 @@ int PID_counter = 2;
 // Buffer System
 #define BUFFER_SIZE 256
 char sys_buffer[BUFFER_SIZE];
-
-
 
 /* --------------------- AUXILIAR FUNCTIONS --------------------- */
 
@@ -64,7 +65,8 @@ int init_child_address_space(struct task_struct *child_pcb)
    * ! We want that the child point to the same 
    * ! physical pages as the parent.
    */
-  for (int frame = 0; frame < NUM_PAG_DATA; frame++){
+  for (int frame = 0; frame < NUM_PAG_DATA; frame++)
+  {
     // Search for a free frame
     new_frames[frame] = alloc_frame();
     
@@ -72,7 +74,8 @@ int init_child_address_space(struct task_struct *child_pcb)
     if (new_frames[frame] < 0)
     {
       // Free frames of previous process that was allocated before to avoid memory leaks
-      for (int frameD = 0; frameD < frame; frameD++){
+      for (int frameD = 0; frameD < frame; frameD++)
+      {
         free_frame(new_frames[frameD]); 
       }
       // Enqueue again the child process in the freequeue
@@ -226,7 +229,7 @@ int sys_fork()
   PID_counter++;
   
   // 8. Initialize the fields of the task_struct that are not common to the child
-  child_pcb->quantum = current()->quantum;
+  child_pcb->quantum = DEFAULT_QUANTUM;
   child_pcb->state = ST_READY;  
   child_pcb->pending_unblocks = 0;
 
@@ -265,8 +268,124 @@ int sys_fork()
   return PID;
 }
 
+// In ZeOS, exit() does not return any value
 void sys_exit()
-{  
+{
+  struct task_struct *current_pcb = (struct task_struct *)current();
+  page_table_entry *current_PT = get_PT(current_pcb);
+  
+  // Get the parent process
+  struct list_head *current_kids = list_first(&current_pcb->kids);
+  
+  // 1. Free data structures & resources of current process (PCB, frames, etc.)
+  // If the process has children, they will be adopted by the idle task
+  if (current_kids != NULL)
+  {
+    list_for_each(current_kids, &current_pcb->kids)
+    { 
+      // Adopt the child processes of the current process by the idle task 
+      list_add_tail(current_kids, &idle_task->kids);  
+      
+      
+      // Get the task_struct pointer of the child process
+      struct task_struct *child_pcb = list_head_to_task_struct(current_kids); 
+      child_pcb->parent = idle_task;  // Adopted by the idle task
+      list_del(current_kids); // Remove from the parent's children list
+    }
+  }
+
+  // Erase frames 
+  for (int i = 0; i < NUM_PAG_DATA; i++)
+  {
+    int frame = get_frame(current_PT, PAG_LOG_INIT_DATA + i);
+    free_frame(frame);
+    del_ss_pag(current_PT, PAG_LOG_INIT_DATA + i);
+  }
+
+  list_add_tail(&current_pcb->list, &freequeue); // Add the process to the freequeue
+
+  /**
+   * 2. Use the scheduler interface to select a new process 
+   * to be executed and make a context switch.
+   */
+  sched_next_rr();
+}
+
+
+/**
+ * @brief Blocks the current process unless there are pending unblocks
+ *
+ * This function attempts to block the current process. If there are no pending unblocks,
+ * it changes the process state to ST_BLOCKED, adds it to the blocked queue, and triggers
+ * a context switch by calling schedule(). If there are pending unblocks, it decrements
+ * the pending_unblocks counter instead of blocking the process.
+ *
+ * @return void
+ */
+void sys_block(void)
+{
+  struct task_struct *current_pcb;
+  int pending_unblocks;
+  
+  current_pcb = current();
+  pending_unblocks = current_pcb->pending_unblocks;
+
+  // If there are no pending unblocks, block the process
+  if (pending_unblocks == 0)
+  {
+    current_pcb->state = ST_BLOCKED;  // Change the state to blocked
+    list_add_tail(&current_pcb->list, &blocked); // Add to the blocked queue
+    schedule(); // Select a new process to run
+    // sched_next_rr(); // Select a new process to run
+  }
+  else
+  {
+    current_pcb->pending_unblocks -= 1;
+  }
+}
+
+/**
+ * @brief Unblocks a process identified by its PID
+ *
+ * This function searches for a process with the specified PID in the blocked queue.
+ * If found and the process is in ST_BLOCKED state, it changes its state to ST_READY,
+ * removes it from the blocked queue, and adds it to the ready queue.
+ * If the process is found but not in blocked state, it increments the current process's
+ * pending_unblocks counter.
+ *
+ * @param PID The process ID of the process to unblock
+ * @return 0 on success (process found), -1 if process not found
+ */
+int sys_unblock(int PID)
+{
+  struct task_struct *unblocked_pcb;
+  struct list_head *unblocked_list;
+
+  // Check the blocked child processes of the current process
+  list_for_each(unblocked_list, &current()->kids)
+  {
+    // Get the task_struct pointer of the process
+    unblocked_pcb = list_head_to_task_struct(unblocked_list);
+    if (unblocked_pcb->PID == PID)
+    {
+      // If the process is blocked, unblock it
+      if (unblocked_pcb->state == ST_BLOCKED)
+      {
+        unblocked_pcb->state = ST_READY;  // Change the state to ready
+        // unblocked_pcb->pending_unblocks = 0; // Reset pending unblocks
+        list_del(unblocked_list); // Remove from the blocked queue
+        list_add_tail(unblocked_list, &readyqueue); // Add to the ready queue
+        return 0;
+      }
+      // If the process is not blocked, return an error
+      else 
+      {
+        current()->pending_unblocks += 1; 
+        return 0; // Process not found
+      }
+    }
+  }
+  return -ECHILD; // Child not found
 }
 
 /**

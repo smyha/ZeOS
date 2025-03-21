@@ -129,6 +129,10 @@ void _page_fault_routine(unsigned long error, unsigned long EIP){         //ROUT
   char hex_digits[] = "0123456789ABCDEF";
   for (int i = 7; i >= 0; i--)                  /*8 HEX digits = 32 bits*/
     printc(hex_digits[(EIP >> (4 * i)) & 0xF]); /*Each digit is 4 bits*/
+
+   
+  // printk(" with error code: 0x");
+  // printc(hex_digits[error & 0xF]);
   
   printk("\n");
   printk("Halting the system...\n");
@@ -212,6 +216,7 @@ void clock_routine() {                        // ROUTINE
   // NOTE: Showed time goes faster than the real one
   ++zeos_ticks;
   zeos_show_clock();
+  schedule(); 
 }
 
 /**

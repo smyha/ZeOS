@@ -117,35 +117,63 @@ int test_getpid() {
 int fork(); // SYSENTER
 int fork_int(); // INT 0x80
 
-int test_fork() {
+void block(); // SYSENTER
+void block_int(); // INT 0x80
+
+int unblock(int pid); // SYSENTER
+int unblock_int(int pid); // INT 0x80
+
+int test_fork_and_blocks() {
   // Print a newline
   write(1, "\n", 1);
 
-  // Test fork
-  pid = fork();
-  
-  // Print PID (should be 2)
-  write(1, "Testing fork: PID = ", 20);
-  itoa(pid, buffer);
-  write(1, buffer, strlen(buffer));
-  write(1,  "\n", 1);
+  int pid_test = fork();
+  if (pid_test == 0) 
+  {
+    int pid_test2 = fork();
+    if (pid_test2 > 0)
+    {
+      //PROCESS 2 -> unblock test
+      buffer = "\nIm the PROCESS: ";  // PROCESS 1
+      if (write(1,buffer,17) == -1) {perror(); exit();}
+      itoa(getpid(),buffer);
+      if (write(1,buffer,2) ==-1) {perror(); exit();}
 
-  if (pid == 0) {
-    write(1, "Child process\n", 14);
-    int child_pid = getpid();
-    write(1, "Child PID: ", 11);
-    itoa(child_pid, buffer);
-    write(1, buffer, strlen(buffer));
-    // exit();
-  } else if (pid > 0) {
-    write(1, "Parent process\n", 15);
-    int parent_pid = getpid();
-    write(1, "Parent PID: ", 12);
-    itoa(parent_pid, buffer);
-    write(1, buffer, strlen(buffer));
-  } else {
-    write(1, "Error forking\n", 14);
+      while(1)
+      {
+        if (unblock(pid_test2) == -1) {perror(); exit();}
+      }
+    }
+    else if (pid_test2 == 0)
+    {
+      //PROCESS pid_test2 -> block test
+      buffer = "\nIm the PROCESS: ";    // PROCESS 2
+      if (write(1,buffer,17) == -1) {perror(); exit();}
+      itoa(getpid(),buffer);
+      if (write(1,buffer,2) == -1) {perror(); exit();}
+      buffer = " im going to block!\n";
+      if (write(1,buffer,21) == -1) {perror(); exit();}
+      block();
+      buffer = "Unlocked! \n";
+      if (write(1,buffer,12) == -1) {perror(); exit();}
+      
+      //EXIT -> should not write 
+      exit(); 
+      buffer = "\nI should not be here\n";  
+      if (write(1,buffer,21) == -1) {perror(); exit();}
+    }
+    else perror();
   }
+  else if (pid_test > 0)
+  {
+    //PROCESS 1 -> Task1
+    buffer = "\nIm the PROCESS: ";
+    if (write(1,buffer,17) == -1) {perror(); exit();}
+    itoa(getpid(),buffer);
+    if (write(1,buffer,2) == -1) {perror(); exit();}
+    write(1, "\n", 1);
+  }
+  else {perror(); exit();}
 
   return 1;
 }
@@ -166,7 +194,7 @@ int __attribute__ ((__section__(".text.main")))
   if (write(1, "AAA\n", -1)) {
 	// write(1, "error\n", 6);
   	perror();
-	tests_passed++;
+	  tests_passed++;
   }
 
   buffer = "Let's test some system calls!\n";
@@ -174,13 +202,13 @@ int __attribute__ ((__section__(".text.main")))
   if (test_write()) tests_passed++;
   if (test_gettime()) tests_passed++;
   if (test_getpid()) tests_passed++;
-  if (test_fork()) tests_passed++;
+  if (test_fork_and_blocks()) tests_passed++;
   
   // Convert number of tests passed to string
   itoa(tests_passed, buffer);
   
   // Print results
-  write(1, "\nTests passed: ", 16);
+  write(1, "Tests passed: ", 15);
   write(1, buffer, strlen(buffer));
   write(1, "\n", 1);
 

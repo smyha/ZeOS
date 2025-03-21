@@ -74,6 +74,8 @@ void update_sched_data_rr();
 void switch_stack(long unsigned int *old_esp, unsigned int new_esp);
 void inner_task_switch(union task_union *new);
 
+void schedule();
+
 /* ----------------------------------------------------------------------- */
 
 #endif  /* __SCHED_H__ */

@@ -1,5 +1,4 @@
 #include <asm.h>
-
 /*
  * writeMSR - Write to a Model Specific Register
  *
@@ -117,7 +116,7 @@ ENTRY(task_switch)
 ENTRY(switch_stack)
     /** EBP has the address of the current system stack 
      *  where inner_task_switch begins (dynamic link)
-     *  (task_switch -> inner_task_switch -> switch_stack -> inner_task_switch)
+     *  (task_switch -> inner_task_switch -> switch_stack -> inner_task_switch')
      *  ESP has the address of the current system stack
     */
 
