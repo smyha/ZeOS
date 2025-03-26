@@ -484,7 +484,7 @@ ENTRY(block_int)
     movl $12, %eax        # System call number for block (12) 
     int $0x80
 
-    # ! No need to check for error as block never returns
+    # ! No need to check for error as block 
 
     # Restore the registers 
     RESTORE_REG

@@ -40,6 +40,10 @@ char sys_buffer[BUFFER_SIZE];
 /* --------------------- AUXILIAR FUNCTIONS --------------------- */
 
 int ret_from_fork(){
+  // ? Debugging messages
+  // printk("Direction of current task struct (ret_from_fork): ");
+  // print_number((int)current());
+  // printk("\n");
   return 0;
 }
 
@@ -62,8 +66,6 @@ int init_child_address_space(struct task_struct *child_pcb)
    * logical pages for data+stack of the child process. 
    * If there are not enough free pages, an error will be returned.
    * 
-   * ! We want that the child point to the same 
-   * ! physical pages as the parent.
    */
   for (int frame = 0; frame < NUM_PAG_DATA; frame++)
   {
@@ -108,47 +110,53 @@ int init_child_address_space(struct task_struct *child_pcb)
   TOTAL_SPACE = SHARED_SPACE + NUM_PAG_DATA;  
 
   // SYSTEM CODE (KERNEL)
+  // Parent and child point to the same physical page in the kernel space (shared)
   for (int frame = 0; frame < NUM_PAG_KERNEL; frame++)
   {
-    // parent and child point to the same physical page in the kernel space (shared)
     set_ss_pag(child_PT, frame + 0, get_frame(parent_PT, frame + 0));
     // child_PT[frame] = parent_PT[frame]
   }
 
   // USER CODE
+  // Code pages are read-only and shared between parent and child and don't need to be copied
+  // The child process will have the same code pages (physical frames) as the parent process 
   for (int frame = 0; frame < NUM_PAG_CODE; frame++)
   { 
-    // parent and child point to the same physical page in the user space (shared)
     set_ss_pag(child_PT, PAG_LOG_INIT_CODE + frame, get_frame(parent_PT, PAG_LOG_INIT_CODE + frame));
     // child_PT[PAG_LOG_INIT_CODE + frame] = parent_PT[PAG_LOG_INIT_CODE + frame]
   }
 
   // DATA + STACK
+  // Map logical pages of the child process to the physical pages allocated 
   for (int frame = 0; frame < NUM_PAG_DATA; frame++)
   {
-    // parent and child point to the same physical page in the user space (shared)
     set_ss_pag(child_PT, PAG_LOG_INIT_DATA + frame, new_frames[frame]);
     // child_PT[PAG_LOG_INIT_DATA + frame] = parent_PT[PAG_LOG_INIT_DATA + frame]
   }
   
   /**
+   * !IMPORTANT!
+   * ! Parent process cannot access to physical pages of the child process directly
    * Grant temporary access to parent process (data+stack space of the child)
    * Parent point data+stack space (@F) of the child to make a copy.
    */
    for (int frame = 0; frame < NUM_PAG_DATA; frame++)
   {
-    //  Below data+stack space.
-    set_ss_pag(parent_PT, TOTAL_SPACE + frame, new_frames[frame]); // Map the shared space to the parent to access the child's data
+    // Below data+stack space.
+    // Map the shared space to the parent to access the child's physical frames
+    set_ss_pag(parent_PT, TOTAL_SPACE + frame, new_frames[frame]); 
 
     /**
-     * copy_data((void *) KERNEL_START + *p_sys_size, (void*)L_USER_START, *p_usr_size);
      * Do << 12 shift because of the page size [4KB - 12 bits] [PAGE_SIZE = 0x1000 = 4096]
      * in order to get the page address. Is the same by doing * PAGESIZE.
      */
-    copy_data((void *)((NUM_PAG_KERNEL + frame) << 12), (void *)((TOTAL_SPACE + frame) << 12), PAGE_SIZE);
-    // copy_data((void *)((NUM_PAG_KERNEL + frame)*PAGE_SIZE), (void *)((TOTAL_SPACE + frame)*PAGE_SIZE), PAGE_SIZE);
+    copy_data((void *)((PAG_LOG_INIT_DATA + frame) << 12), // Origin : Parent Data 
+              (void *)((TOTAL_SPACE + frame) << 12),       // Destination : "Child" Data 
+              PAGE_SIZE);                                  // Size : PAGE_SIZE (4KB)
+    // parent_PT[TOTAL_SPACE + frame] = child_PT[PAG_LOG_INIT_DATA + frame]
 
-    del_ss_pag(parent_PT, TOTAL_SPACE + frame);  // Unmap the shared space to avoid the child to access the parent's data
+    // Unmap the shared space to avoid the child to access the parent's data
+    del_ss_pag(parent_PT, TOTAL_SPACE + frame);  
   }
 
   // TLB flush (invalidate TLB entries with the shared pages)
@@ -248,7 +256,7 @@ int sys_fork()
    * +--------------------+ <- stack[KERNEL_STACK_SIZE - 19] 
    * | @ret ret_from_fork |
    * +--------------------+ <- stack[KERNEL_STACK_SIZE - 18]
-   * | @ret clock_handler |
+   * |@ret sycall_handler |
    * +--------------------+ <- stack[KERNEL_STACK_SIZE - 17]
    * |  CTX SW - 11 regs  |
    * +--------------------+ <- stack[KERNEL_STACK_SIZE - 6]
@@ -262,13 +270,27 @@ int sys_fork()
   // esp points to fake ebp (it will pop and on top of the stack will be the ret from fork)
   child_union->task.kernel_esp = (unsigned long) &(child_union->stack[KERNEL_STACK_SIZE - 19]);
 
-  // 10. Enqueue the child process in the readyqueue
+  // 10. Enqueue the child process in the readyqueue to be executed 
   list_add_tail(&child_pcb->list, &readyqueue);
 
   return PID;
 }
 
-// In ZeOS, exit() does not return any value
+/**
+ * @brief Terminates the current process and performs cleanup operations.
+ * 
+ * It performs the following operations:
+ * 1. Verifies that the process is not the init process (PID 1), which cannot exit
+ * 2. Handles orphaned child processes by reassigning them to the idle task
+ * 3. Frees physical memory frames allocated for the process's data and stack
+ * 4. Returns the process control block (PCB) to the free queue for reuse
+ * 5. Schedules a new process to run using the round-robin scheduler
+ * 
+ * The kernel pages and code pages (which may be shared) are preserved during cleanup.
+ * This function does not return to the caller as it triggers a context switch.
+ * 
+ * @note In ZeOS, unlike standard Unix, exit() does not return any value.
+ */
 void sys_exit()
 {
   struct task_struct *current_pcb = (struct task_struct *)current();
@@ -276,7 +298,19 @@ void sys_exit()
   
   // Get the parent process
   struct list_head *current_kids = list_first(&current_pcb->kids);
+
+  // If the process is the task 1, it cannot exit
+  if (current_pcb->PID == 1)
+  {
+    printk("\nThe task 1 cannot exit\n");
+    return;
+  }
   
+  // ? Debugging messages
+  // printk("\nPID of the process that is going to exit: ");
+  // print_number(current_pcb->PID);
+  // printk("\n");
+
   // 1. Free data structures & resources of current process (PCB, frames, etc.)
   // If the process has children, they will be adopted by the idle task
   if (current_kids != NULL)
@@ -294,7 +328,8 @@ void sys_exit()
     }
   }
 
-  // Erase frames 
+  // ! Free the physical frames of the data+stack pages of the current process
+  // ! Keep the kernel pages and the code pages (shared)
   for (int i = 0; i < NUM_PAG_DATA; i++)
   {
     int frame = get_frame(current_PT, PAG_LOG_INIT_DATA + i);
@@ -302,6 +337,7 @@ void sys_exit()
     del_ss_pag(current_PT, PAG_LOG_INIT_DATA + i);
   }
 
+  // current_pcb->PID = -1;  // ! Mark as unused
   list_add_tail(&current_pcb->list, &freequeue); // Add the process to the freequeue
 
   /**
@@ -311,7 +347,6 @@ void sys_exit()
   sched_next_rr();
 }
 
-
 /**
  * @brief Blocks the current process unless there are pending unblocks
  *
@@ -320,7 +355,6 @@ void sys_exit()
  * a context switch by calling schedule(). If there are pending unblocks, it decrements
  * the pending_unblocks counter instead of blocking the process.
  *
- * @return void
  */
 void sys_block(void)
 {
@@ -340,7 +374,11 @@ void sys_block(void)
   }
   else
   {
-    current_pcb->pending_unblocks -= 1;
+    current_pcb->pending_unblocks -= 1; // Decrement pending unblocks
+    // ? Debugging messages
+    // printk("Pending unblocks: ");
+    // print_number(current_pcb->pending_unblocks);
+    // printk("\n");
   }
 }
 

@@ -261,15 +261,19 @@ void keyboard_routine() {                     // ROUTINE
   // Check if it's a make (0) or break (1) code
   if (!pressed) { // key press
 
-    // For testing task_switch
+    // For testing task_switch (withouth scheduling !)
+    /**
     if (char_map[scan_code] == '0') {
-      printk("Switching to idle task...\n");
-      task_switch((union task_union *)idle_task);
+      if (current() == idle_task) {
+        printk("Switching to task1...\n");
+        task_switch((union task_union *)task1);
+      } else {
+        printk("Switching to idle_task...\n");
+        task_switch((union task_union *)idle_task);
+      }
     }
-    if (char_map[scan_code] == '1') {
-      task_switch((union task_union *)task1);
-    } 
-
+    */
+   
     // If the key is not mapped, print 'C'
     if (char_map[scan_code] == '\0')
        printc_xy(0, 0, 'C');
@@ -318,7 +322,7 @@ void setIdt()
   writeMSR(0x174, __KERNEL_CS);         // Sets kernel code segment selector for SYSENTER
   writeMSR(0x175, INITIAL_ESP);         // Sets the kernel stack pointer for SYSENTER 
   writeMSR(0x176, (DWord)syscall_handler_sysenter);  // Sets the entry point address for FAST system calls
-  // writeMSR(0x176, (DWord)system_call_handler);  
+  // writeMSR(0x176, (DWord)system_call_handler);  // Sets the entry point address for INT system calls
   /*@see: sched.h*/
   
   set_idt_reg(&idtR);

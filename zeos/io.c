@@ -56,7 +56,7 @@ void scroll_screen() {
       }
   }
   
-  // Clear last line
+  // Clear last line (fill with spaces)
   for(int j = 0; j < NUM_COLUMNS; j++) {
       screen[(NUM_ROWS-1) * NUM_COLUMNS + j] = (Word)(' ' | 0x0200);
   }
@@ -78,16 +78,19 @@ static void _printc_impl(char c, Byte color) {
       }
   }
   else {
-      Word ch = (Word)(c & 0x00FF) | (color << 8);
+      // Combine character and color into a single Word 
+      Word ch = (Word)(c & 0x00FF) | (color << 8); // Shift color to upper byte
       Word *screen = (Word *)0xb8000;
       screen[(y * NUM_COLUMNS + x)] = ch;
       
       if (++x >= NUM_COLUMNS) {
           x = 0;
           y++;
+
+          // If we reach the end of the screen, scroll it
           if (y >= NUM_ROWS) {
               scroll_screen();
-              y = NUM_ROWS-1;
+              y = NUM_ROWS-1; // Adjust cursor to last line after scrolling
           }
       }
   }
@@ -103,29 +106,63 @@ void printc(char c) {
   _printc_impl(c, GREEN); 
 }
  
- /**
-  * @brief Prints a character at position (x, y) on the screen
-  * /param mx x position
-  * /param my y position
-  * /param c character to print
-  */
- void printc_xy(Byte mx, Byte my, char c)
- {
-   Byte cx, cy;
-   cx=x;
-   cy=y;
-   x=mx;
-   y=my;
-   printc(c);
-   x=cx;
-   y=cy;
- }
- 
- 
- void printk(char *string)
- {
-   int i;
-   for (i = 0; string[i]; i++)
-     printc(string[i]);
- }
- 
+/**
+* @brief Prints a character at position (x, y) on the screen
+* /param mx x position
+* /param my y position
+* /param c character to print
+*/
+void printc_xy(Byte mx, Byte my, char c)
+{
+  Byte cx, cy;
+  cx=x;
+  cy=y;
+  x=mx;
+  y=my;
+  printc(c);
+  x=cx;
+  y=cy;
+}
+
+
+void printk(char *string)
+{
+  int i;
+  for (i = 0; string[i]; i++)
+    printc(string[i]);
+}
+
+
+void print_number(int num)
+{
+  char str[10];
+  int i = 0;
+  
+  // SPECIAL CASES
+  // Negative numbers
+  if (num < 0)
+  {
+    printc('-');
+    num = -num;
+  }
+  // Zero
+  if (num == 0)
+  {
+    printc('0');
+    return;
+  }
+  
+  while (num > 0)
+  {
+    str[i] = num % 10 + '0';
+    num = num / 10;
+    i++;
+  }
+  str[i] = '\0';
+  i--;
+  while (i >= 0)
+  {
+    printc(str[i]);
+    i--;
+  }
+}

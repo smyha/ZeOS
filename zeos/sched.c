@@ -71,12 +71,31 @@ void cpu_idle(void)
 	}
 }	
 
-
+/**
+ * @brief Get the quantum value of a task
+ * 
+ * This function returns the current quantum value assigned to the specified task.
+ * The quantum typically represents the amount of CPU time allocated to a task
+ * before it may be preempted by the scheduler.
+ * 
+ * @param t Pointer to the task structure
+ * @return Current quantum value of the task
+ */
 int get_quantum(struct task_struct *t)
 {
 	return t->quantum;
 }
 
+/**
+ * @brief Set a new quantum value for a task
+ * 
+ * This function assigns a new quantum value to the specified task.
+ * The quantum represents the amount of CPU time allocated to the task
+ * before it may be preempted by the scheduler.
+ * 
+ * @param t Pointer to the task structure
+ * @param new_quantum New quantum value to be assigned
+ */
 void set_quantum(struct task_struct *t, int new_quantum)
 {
 	t->quantum = new_quantum;
@@ -123,12 +142,17 @@ void update_sched_data_rr(void)
  */
 int needs_sched_rr(void)
 {
-	/* Case 1: Quantum expired and other processes are waiting */
-	if (queue_ticks <= 0 && !list_empty(&readyqueue))
-		return 1;
+	/* If quantum expired, reset it to current process's quantum */
+	if (queue_ticks <= 0) {
+		queue_ticks = get_quantum(current());
+		
+		/* Case 1: Quantum expired AND other processes are waiting */
+		if (!list_empty(&readyqueue))
+			return 1;
+	}
 	
 	/* Case 2: Current process is blocked */
-	if (current()->state == ST_BLOCKED)
+	else if (current()->state == ST_BLOCKED)
 		return 1;
 	
 	/* No need to schedule */
@@ -201,14 +225,22 @@ void sched_next_rr(void)
 
     // Select next process: from ready queue if possible, idle process otherwise
     if (!list_empty(&readyqueue)) {
+		// ? Debugging messages
 		// printk("Scheduling next process\n");
-        // Get the first process from the ready queue (FIFO order)
+        
+		// Get the first process from the ready queue (FIFO order)
         next = list_first(&readyqueue);
-        next_task = list_head_to_task_struct(next); 
-		update_process_state_rr(next_task, NULL); 
+		// list_del(next);
+		// Get the task_struct pointer from the list_head pointer
+        next_task = list_head_to_task_struct(next);
+		// Remove from the ready queue 
+		update_process_state_rr(next_task, NULL);
+		 
     } else {
+		// ? Debugging messages
 		// printk("No ready processes, scheduling idle task\n");
-        // Fall back to idle task if no processes are ready
+        
+		// Fall back to idle task if no processes are ready
         next_task = idle_task;
     }
     // Reset quantum counter for the next process
@@ -245,6 +277,11 @@ void schedule(void)
         update_process_state_rr(current_pcb, &readyqueue);
         // Select and switch to next process
         sched_next_rr();
+
+		// ? Debugging messages
+		// printk("\nNew process scheduled with PID: ");
+		// print_number(current()->PID);
+		// printk("\n");
     }
 }
 
@@ -362,7 +399,7 @@ void init_task1(void)
 	set_quantum(task1_pcb, DEFAULT_QUANTUM);
 	task1_pcb->pending_unblocks = 0;
 	task1_pcb->state = ST_RUN;	// ! Mark as running
-	// task1_pcb->parent = task1_pcb;	// ! Parent is himself
+	// task1_pcb->parent = task1_pcb;	// ! Parent is himself 
 	
 	// Initialize the kids 
 	INIT_LIST_HEAD(&task1_pcb->kids);
