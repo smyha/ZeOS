@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.cc": "cpp",
+        "cstdlib": "c",
+        "zeos_interrupt.h": "c"
+    }
+}
