@@ -13,6 +13,7 @@ ENTRY (sys_call_table)
 	.long sys_SetPriority	//8
 	.long sys_pthread_exit	//9
 	.long sys_gettime	//10
+	
 	.long sys_ni_syscall	//11
 	.long sys_ni_syscall	//12
 	.long sys_yield		//13
@@ -25,10 +26,13 @@ ENTRY (sys_call_table)
 	.long sys_getpid	//20	
 	.long sys_ni_syscall	//21
 	.long sys_ni_syscall	//22
-	.long sys_ni_syscall	//23
-	.long sys_ni_syscall	//24
-	.long sys_ni_syscall	//25
-	.long sys_ni_syscall	//26
+
+	// ! ----------------- SEMAPHORES -----------------
+	.long sys_sem_init	//23
+	.long sys_sem_wait	//24
+	.long sys_sem_post	//25
+	.long sys_sem_destroy	//26
+
 	.long sys_ni_syscall	//27
 	.long sys_ni_syscall	//28
 	.long sys_ni_syscall	//29

@@ -79,8 +79,6 @@ void cpu_idle(void)
 	}
 }
 
-#define DEFAULT_QUANTUM 10
-
 int remaining_quantum=0;
 
 int get_quantum(struct task_struct *t)
@@ -95,6 +93,63 @@ void set_quantum(struct task_struct *t, int new_quantum)
 
 struct task_struct *idle_task=NULL;
 
+/**
+ * @brief Inserts a task into the ready queue based on priority
+ * 
+ * This function implements a priority-based insertion into the ready queue.
+ * Tasks with higher priority are placed at the beginning of the queue.
+ * The function ensures:
+ * 1. Thread priority inheritance from master thread
+ * 2. Proper state transitions
+ * 3. Accurate statistics tracking
+ * 
+ * @param t Pointer to the task structure to be inserted
+ */
+void insert_ready_ordered(struct task_struct *t) {
+    struct list_head *pos;
+    struct task_struct *current_pos;
+    
+    // Validate task pointer
+    if (!t) 
+      return;
+    
+    // Ensure thread priority matches master thread
+    if (t->master_thread != t) {
+        t->priority = t->master_thread->priority;
+    }
+    
+    // Fast path: empty queue
+    if (list_empty(&readyqueue)) {
+        list_add_tail(&t->list, &readyqueue);
+        t->state = ST_READY;
+        update_stats(&t->p_stats.system_ticks, &t->p_stats.elapsed_total_ticks);
+        return;
+    }
+    
+    // Find insertion point based on priority
+    list_for_each(pos, &readyqueue) {
+        current_pos = list_head_to_task_struct(pos);
+        
+        // Insert before first task with lower priority
+        if (t->priority > current_pos->priority) {
+            list_add(&t->list, pos);
+            t->state = ST_READY;
+            update_stats(&t->p_stats.system_ticks, &t->p_stats.elapsed_total_ticks);
+            
+            // ! If the inserted task has higher priority than current, force reschedule
+            if (t->priority > current()->priority) {
+                force_task_switch();
+            }
+            return;
+        }
+    }
+    
+    // If we get here, add at the end (lowest priority)
+    list_add_tail(&t->list, &readyqueue);
+    t->state = ST_READY;
+    update_stats(&t->p_stats.system_ticks, &t->p_stats.elapsed_total_ticks);
+}
+
 void update_sched_data_rr(void)
 {
   remaining_quantum--;
@@ -102,31 +157,45 @@ void update_sched_data_rr(void)
 
 int needs_sched_rr(void)
 {
-  if ((remaining_quantum==0)&&(!list_empty(&readyqueue))) return 1;
-  if (remaining_quantum==0) remaining_quantum=get_quantum(current());
-  return 0;
-}
+  // Check if current quantum is over
+  if (remaining_quantum==0) {
+    if (!list_empty(&readyqueue)) return 1;
+    remaining_quantum=get_quantum(current());
+    return 0;
+  }
 
-void update_process_state_rr(struct task_struct *t, struct list_head *dst_queue)
-{
-  if (t->state!=ST_RUN) list_del(&(t->list));
-  if (dst_queue!=NULL)
-  {
-    list_add_tail(&(t->list), dst_queue);
-    if (dst_queue!=&readyqueue) t->state=ST_BLOCKED;
-    else
-    {
-      update_stats(&(t->p_stats.system_ticks), &(t->p_stats.elapsed_total_ticks));
-      t->state=ST_READY;
-
-      if (t->priority > current()->priority)
-      {
-        update_process_state_rr(current(), &readyqueue);
-        sched_next_rr();
-      }
+  // Check if there's a higher priority thread in ready queue
+  if (!list_empty(&readyqueue)) {
+    struct task_struct *next_task = list_head_to_task_struct(list_first(&readyqueue));
+    if (next_task->priority > current()->priority) {
+      return 1;
     }
   }
-  else t->state=ST_RUN;
+
+  return 0;
+}
+void update_process_state_rr(struct task_struct *t, struct list_head *dst_queue)
+{
+  // Remove from current queue if not running
+  if (t->state != ST_RUN) {
+    list_del(&t->list);
+  }
+  
+  if (dst_queue != NULL) {
+    if (dst_queue == &readyqueue) {
+      // Insert into ready queue based on priority
+      insert_ready_ordered(t);
+    }
+    else {
+      // Blocked queue
+      list_add_tail(&t->list, dst_queue);
+      t->state = ST_BLOCKED;
+    }
+  }
+  else {
+    // Running state
+    t->state = ST_RUN;
+  }
 }
 
 void sched_next_rr(void)
@@ -135,19 +204,24 @@ void sched_next_rr(void)
   struct task_struct *t;
 
   if (!list_empty(&readyqueue)) {
-	e = list_first(&readyqueue);
+    // Get the highest priority task (first in queue)
+    e = list_first(&readyqueue);
     list_del(e);
-
-    t=list_head_to_task_struct(e);
+    t = list_head_to_task_struct(e);
   }
-  else
-    t=idle_task;
+  else {
+    t = idle_task;
+  }
 
-  t->state=ST_RUN;
-  remaining_quantum=get_quantum(t);
+  // Update current task stats before switching
+  update_stats(&current()->p_stats.system_ticks, &current()->p_stats.elapsed_total_ticks);
 
-  update_stats(&(current()->p_stats.system_ticks), &(current()->p_stats.elapsed_total_ticks));
-  update_stats(&(t->p_stats.ready_ticks), &(t->p_stats.elapsed_total_ticks));
+  // Set new task as running
+  t->state = ST_RUN;
+  remaining_quantum = get_quantum(t);
+
+  // Update new task stats
+  update_stats(&t->p_stats.ready_ticks, &t->p_stats.elapsed_total_ticks);
   t->p_stats.total_trans++;
 
   task_switch((union task_union*)t);
@@ -179,10 +253,10 @@ void init_idle (void)
   c->screen_page = (void*)-1; // No screen page
   c->priority = DEFAULT_PRIORITY;
   c->TID = 1;
-  c->main_thread = c;
+  c->master_thread = c;
   
-  INIT_LIST_HEAD(&(c->my_threads));
-  INIT_LIST_HEAD(&(c->children));
+  INIT_LIST_HEAD(&(c->threads));
+  INIT_LIST_HEAD(&(c->threads_list));
 
   allocate_DIR(c);
 
@@ -213,10 +287,13 @@ void init_task1(void)
   c->screen_page = (void*)-1; // No screen page
   c->priority = DEFAULT_PRIORITY;
   c->TID = 1;
-  c->main_thread = c;
+  c->master_thread = c;
+  c->next_sem_id = 0;
+  c->user_stack_ptr = NULL;
+  c->thread_count = 1;
 
-  INIT_LIST_HEAD(&(c->my_threads));
-  INIT_LIST_HEAD(&(c->children));
+  INIT_LIST_HEAD(&(c->threads));
+  INIT_LIST_HEAD(&(c->threads_list));
 
   remaining_quantum=c->total_quantum;
 
@@ -230,6 +307,25 @@ void init_task1(void)
   setMSR(0x175, 0, (unsigned long)&(uc->stack[KERNEL_STACK_SIZE]));
 
   set_cr3(c->dir_pages_baseAddr);
+
+  // ! Initialize the semaphore array
+  c->semaphores = &(semaphores[0]); // First semaphore in the array
+  c->semaphores->owner = c->TID;
+  
+  // ! Initialize the semaphore structure
+  init_sem_array();
+
+}
+
+void init_sem_array() {
+  for (int i = 0; i < NR_TASKS; i++) {
+    semaphores[i].owner = -1;
+    for (int j = 0; j < MAX_SEMAPHORES; j++) {
+      semaphores[i].sem[j].count = -1;
+      semaphores[i].sem[j].TID = -1;
+      INIT_LIST_HEAD(&(semaphores[i].sem[j].blocked));
+    }
+  }
 }
 
 void init_freequeue()
@@ -249,14 +345,16 @@ void init_freequeue()
 extern char keyboard_buffer[128];
 void init_sched()
 {
-  init_freequeue();
+  init_freequeue(); 
   INIT_LIST_HEAD(&readyqueue);
   INIT_LIST_HEAD(&blocked);
 
   // ! Initialize the keyboard buffer
   for (int i = 0; i < 128; i++) 
     keyboard_buffer[i] = 0;
-  
+
+  // ! Initialize the semaphore array
+  init_sem_array();
 }
 
 struct task_struct* current()
@@ -294,3 +392,4 @@ void force_task_switch()
 
   sched_next_rr();
 }
+

@@ -11,6 +11,10 @@
 
 #include <zeos_interrupt.h>
 
+#define SCREEN_WIDTH 80
+#define SCREEN_HEIGHT 25
+#define SCREEN_SIZE SCREEN_WIDTH * SCREEN_HEIGHT
+
 Gate idt[IDT_ENTRIES];
 Register    idtR;
 
@@ -39,33 +43,49 @@ char keyboard_buffer[128];  // Vector of the possible keys -> 1 if pressed 0 if 
 extern struct list_head blocked;
 extern struct list_head readyqueue;
 /**
- * @brief Updates the remaining pause time of blocked tasks.
- *
- * Iterates through the blocked list, decrementing the pause_time of each task.
- * If a task's pause_time reaches 0, it is moved to the ready queue.
+ * @brief Updates the remaining pause time of blocked tasks and manages their state transitions
+ * 
+ * This function is called during each clock tick to:
+ * 1. Decrement the pause time of blocked tasks
+ * 2. Move tasks that have completed their pause to the ready queue
+ * 3. Maintain proper task scheduling based on priorities
+ * 
+ * The function uses a safe iteration method to handle concurrent modifications
+ * of the blocked list during task state transitions.
+ * 
+ * @return 0 on successful execution
  */
 void update_blocked_time() {
-	struct list_head *pos, *tmp;
-	
-  // Iterate through the blocked list
+  struct list_head *pos, *tmp;
+  struct task_struct *t;
+  
+  // Iterate through the blocked list safely
   list_for_each_safe(pos, tmp, &blocked) {
-		struct task_struct *t = list_entry(pos, struct task_struct, list);
-		t->pause_time--;  // Decrement the pause time
-		
-    // If the pause time is 0, move the task to the ready queue
+    t = list_head_to_task_struct(pos);  
+
+    // Decrement the pause time
+    t->pause_time--;
+
+    // If the pause time has elapsed, move the task to the ready queue
     if (t->pause_time <= 0) {
-			update_process_state_rr(t, &readyqueue);
-		}
-	}
+      update_process_state_rr(t, &readyqueue);
+    }
+  }
 }
 
+/**
+ * @brief Dumps the screen content to the video memory
+ * 
+ * This function copies the content of the current process's screen page
+ * to the video memory location (0xb8000).
+*/
 void dumpScreen() {
   Word* screen = (Word *)0xb8000;
   Word* content = (Word*)(current()->screen_page);  
-  Word color = WHITE; 
+  // Word color = WHITE; 
 
   // Copy the screen content to the video memory
-  for (int i = 0; i < 80*25; ++i) {
+  for (int i = 0; i < SCREEN_SIZE; ++i) {
     screen[i] = content[i];
   }
 }
@@ -107,11 +127,11 @@ void keyboard_routine()
   unsigned char c = inb(0x60);
   
   // Check if the key is pressed (not released)
-  if (!(c&0x80)) {
-    keyboard_buffer[c] = 1;
+  if (!(c&0x80)) { // Key pressed
+    keyboard_buffer[c&0x7f] = 1;
     // printc_xy(0, 0, char_map[c&0x7f]);
-  } 
-  else if ((c&0x80)) {
+  }
+  else if ((c&0x80)) { // Key released
     keyboard_buffer[c&0x7f] = 0;
     // printc_xy(0, 0, char_map[c&0x7f]);
   }
@@ -165,32 +185,6 @@ void clock_handler();
 void keyboard_handler();
 void system_call_handler();
 
-void setMSR(unsigned long msr_number, unsigned long high, unsigned long low);
-
-void setSysenter()
-{
-  setMSR(0x174, 0, __KERNEL_CS);
-  setMSR(0x175, 0, INITIAL_ESP);
-  setMSR(0x176, 0, (unsigned long)system_call_handler);
-}
-
-void setIdt()
-{
-  /* Program interrups/exception service routines */
-  idtR.base  = (DWord)idt;
-  idtR.limit = IDT_ENTRIES * sizeof(Gate) - 1;
-  
-  set_handlers();
-
-  /* ADD INITIALIZATION CODE FOR INTERRUPT VECTOR */
-  setInterruptHandler(32, clock_handler, 0);
-  setInterruptHandler(33, keyboard_handler, 0);
-
-  setSysenter();
-
-  set_idt_reg(&idtR);
-}
-
 /**
  * Page Fault Exception
  * 
@@ -220,14 +214,45 @@ void _page_fault_routine(unsigned long error, unsigned long EIP){         //ROUT
   for (int i = 7; i >= 0; i--)                  /*8 HEX digits = 32 bits*/
     printc(hex_digits[(EIP >> (4 * i)) & 0xF]); /*Each digit is 4 bits*/
 
-   
-  // printk(" with error code: 0x");
-  // printc(hex_digits[error & 0xF]);
-  
+  // Print more info about the page fault
+  printk(" with error code: 0x");
+  printc(hex_digits[error & 0xF]);
+
+
   printk("\n");
   printk("Halting the system...\n");
   while(1);     // Infinite loop
 } 
+
+void setMSR(unsigned long msr_number, unsigned long high, unsigned long low);
+
+void setSysenter()
+{
+  setMSR(0x174, 0, __KERNEL_CS);
+  setMSR(0x175, 0, INITIAL_ESP);
+  setMSR(0x176, 0, (unsigned long)system_call_handler);
+}
+
+void setIdt()
+{
+  /* Program interrups/exception service routines */
+  idtR.base  = (DWord)idt;
+  idtR.limit = IDT_ENTRIES * sizeof(Gate) - 1;
+  
+  set_handlers();
+
+  /* ADD INITIALIZATION CODE FOR INTERRUPT VECTOR */
+  setInterruptHandler(32, clock_handler, 0);
+  setInterruptHandler(33, keyboard_handler, 0);
+
+  setInterruptHandler(14, _page_fault_handler, 0);
+
+  setSysenter();
+
+  set_idt_reg(&idtR);
+}
+
+
 
 
 
